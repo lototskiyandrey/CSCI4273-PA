@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <dirent.h>
 
 #define BUFSIZE 1024
 
@@ -57,8 +58,7 @@ int main(int argc, char **argv) {
    * Eliminates "ERROR on binding: Address already in use" error. 
    */
   optval = 1;
-  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, 
-	     (const void *)&optval , sizeof(int));
+  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int));
 
   /*
    * build the server's Internet address
@@ -107,9 +107,111 @@ int main(int argc, char **argv) {
     /* 
      * sendto: echo the input back to the client 
      */
+
+    // first determine what command was sent.
+
+    char command[BUFSIZE], fileName[BUFSIZE];
+
+    sscanf(buf, "%s %s", command, fileName);
+
+    if(strncmp(command, "ls", 2) == 0) {
+
+      bzero(buf, BUFSIZE);
+      DIR *dirp;
+
+      dirp = opendir(".");
+
+      while(1) {
+        struct dirent *dp = readdir(dirp);
+        if(dp == NULL) {
+          break;
+        }
+        // strcat(buf, dp->d_name);
+        //strncat(buf, "\n", 1);
+
+        printf("Sending message %s\n", dp->d_name);
+
+        // send the name of the file to the client
+        char ack[4];
+        char recieveBuffer[BUFSIZE];
+        do {
+          bzero(buf, BUFSIZE);
+          strcat(buf, dp->d_name);
+          n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &clientaddr, clientlen);
+          if(n < 0) {
+            error("ERROR in sendto");
+          }
+
+          
+
+          // recieve an ACK from the client
+          bzero(recieveBuffer, BUFSIZE);
+          n = recvfrom(sockfd, recieveBuffer, BUFSIZE, 0, (struct sockaddr *) &clientaddr, &clientlen);
+
+          sscanf(recieveBuffer, "%s", ack);
+
+          if(strncmp(ack, "ack", 3) == 0) {
+            printf("Acknowledgement Received.\n");
+          }
+
+          // printf("%s\n", dp->d_name);
+          // printf("Ack: %s\n", ack);
+          // printf("Buffer state: %s\n", buf);
+          // printf("Recieve Buffer State: %s\n", recieveBuffer);
+        } while(strncmp(ack, "ack", 3) != 0);
+        
+      }
+
+      char endOfMessage[7] = "000000\0";
+
+      // send the indicator that we have finished transmission to the host.
+      char ack[4];
+      char recieveBuffer[BUFSIZE];
+      do {
+        printf("Transmission complete: Sending termination message\n");
+        n = sendto(sockfd, endOfMessage, strlen(endOfMessage), 0, (struct sockaddr *) &clientaddr, clientlen);
+        if(n < 0) {
+          error("ERROR in sendto");
+        }
+
+        bzero(recieveBuffer, BUFSIZE);
+        n = recvfrom(sockfd, recieveBuffer, BUFSIZE, 0, (struct sockaddr *) &clientaddr, &clientlen);
+
+        sscanf(recieveBuffer, "%s", ack);
+
+        if(strncmp(ack, "ack", 3) == 0) {
+          printf("Acknowledgement Received.\n");
+        }
+
+      } while(strncmp(ack, "ack", 3) != 0);
+      
+
+
+
+    }
+
+    else if(strncmp(command, "exit", 4) == 0) {
+      printf("Exiting Program.\n");
+      break;
+    }
+
+    else if(strncmp(command, "get", 3) == 0) {
+
+    }
+
+    else if(strncmp(command, "put", 3) == 0) {
+      
+    }
+
+    else if(strncmp(command, "delete", 3) == 0) {
+      
+    }
+
+    /*
     n = sendto(sockfd, buf, strlen(buf), 0, 
 	       (struct sockaddr *) &clientaddr, clientlen);
     if (n < 0) 
       error("ERROR in sendto");
+    */
   }
 }

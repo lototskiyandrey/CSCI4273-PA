@@ -82,23 +82,48 @@ int main(int argc, char **argv) {
 
         /* send the message to the server */
         serverlen = sizeof(serveraddr);
-        n = sendto(sockfd, buf, strlen(buf), 0, &serveraddr, serverlen);
+        n = sendto(sockfd, command, strlen(command), 0, (struct sockaddr *)&serveraddr, serverlen);
         if (n < 0) {
           error("ERROR in sendto");
         }
 
-        /* print the server's reply */
-        n = recvfrom(sockfd, buf, strlen(buf), 0, &serveraddr, &serverlen);
-        if(n < 0) {
-          error("ERROR in recvfrom");
-          // print the buffer sent back
-          printf("%s\n", buf);
-        }
+        char ack[] = "ack\0";
+        char eof[] = "000000\0";
+        //char data[1024];
+        bzero(buf, BUFSIZE);
+        do {
+          /* print the server's reply */
+          bzero(buf, BUFSIZE);
+          n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
+          if(n < 0) {
+            error("ERROR in recvfrom");
+            // print the buffer sent back
+          }
+          
+          // send an ack saying that the message has been recieved
+          //printf("Message recieved from server: %s\n", buf);
+          //printf("Message being sent to server: %s\n", ack);
+          n = sendto(sockfd, ack, strlen(ack), 0, (struct sockaddr *)&serveraddr, serverlen);
+          if (n < 0) {
+            error("ERROR in sendto");
+          }
+
+          // break if we recieve an end of transmission string
+          if(strncmp(buf, eof, 6) == 0) {
+            break;
+          }
+
+          printf("%s ", buf);
+          
+        } while(1);
+
+
+        printf("\n");
       } 
 
       else if(strncmp(command,"exit", 4) == 0) {
         serverlen = sizeof(serveraddr);
-        n = sendto(sockfd, buf, strlen(buf), 0, &serveraddr, serverlen);
+        n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&serveraddr, serverlen);
         if (n < 0) {
           error("ERROR in sendto");
         }
@@ -122,6 +147,8 @@ int main(int argc, char **argv) {
 
       else {
         // Unknown Command
+
+        printf("Unknown Command\n.");
       }
     }
 
