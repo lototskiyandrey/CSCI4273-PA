@@ -16,6 +16,8 @@
 #define true 1
 #define false 0
 
+int indexOfEOFInFile(char *buf, int bufSize);
+
 /* 
  * error - wrapper for perror
  */
@@ -31,6 +33,7 @@ int main(int argc, char **argv) {
     struct hostent *server;
     char *hostname;
     char buf[BUFSIZE];
+    char command[BUFSIZE], inputFile[BUFSIZE];
 
     /* check command line arguments */
     if (argc != 3) {
@@ -73,10 +76,10 @@ int main(int argc, char **argv) {
       printf("> ");
       fgets(buf, BUFSIZE, stdin);
 
-      char command[BUFSIZE], inputFile[BUFSIZE];
+      sscanf(buf, "%s %s", command, inputFile);
 
-      sscanf(buf, "%s, %s", command, inputFile);
-
+      printf("%s\n", inputFile);
+      printf("%s\n", command);
 
       if(strncmp(command, "ls", 2) == 0) {
 
@@ -98,6 +101,7 @@ int main(int argc, char **argv) {
           if(n < 0) {
             error("ERROR in recvfrom");
             // print the buffer sent back
+            continue; // message was not recieved
           }
           
           // send an ack saying that the message has been recieved
@@ -106,6 +110,7 @@ int main(int argc, char **argv) {
           n = sendto(sockfd, ack, strlen(ack), 0, (struct sockaddr *)&serveraddr, serverlen);
           if (n < 0) {
             error("ERROR in sendto");
+            continue; //
           }
 
           // break if we recieve an end of transmission string
@@ -134,7 +139,78 @@ int main(int argc, char **argv) {
       } 
 
       else if(strncmp(command,"get", 3) == 0) {
-        printf("Entered get command!\n");
+        // printf("Entered get command!\n");
+
+        char receiverBuf[BUFSIZE];
+
+        // first send the command and file name
+        //char a[] = "get command recieved file no exist";
+
+        printf("Command: %s, FileName: %s\n", command, inputFile);
+        printf("%s\n", buf);
+
+        do {
+          serverlen = sizeof(serveraddr);
+          bzero(receiverBuf, BUFSIZE);
+          printf("sending command\n");
+          n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&serveraddr, serverlen);
+          if(n < 0) {
+            error("Error: sendto failed\n");
+            continue;
+          }
+          printf("receiving command\n");
+          n = recvfrom(sockfd, receiverBuf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
+          if(n < 0) {
+            error("Error: recvfrom failed\n");
+          }
+          printf("%s\n", receiverBuf);
+        } while(strncmp(receiverBuf, "get command received", 20) != 0);
+
+        if(strncmp(receiverBuf, "get command received file no exist", 35) == 0) {
+          printf("File %s does not exist on server.\n", inputFile);
+          continue; 
+        }
+
+        printf("The file does exist on server\n");
+
+        FILE *f;
+        f = fopen(inputFile, "w");
+
+        char previouslyReceivedBuf[BUFSIZE];
+        bzero(previouslyReceivedBuf, BUFSIZE);
+
+        do {     
+          bzero(receiverBuf, BUFSIZE);
+          n = recvfrom(sockfd, receiverBuf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
+          if(n < 0) {
+            error("recvfrom failed\n");
+            continue;
+          }
+          char ack[] = "ack\0";
+          n = sendto(sockfd, ack, strlen(ack), 0, (struct sockaddr *)&serveraddr, serverlen);
+          if(n < 0) {
+            error("sendto filed\n");
+            continue;
+          }
+
+          if(strncmp(receiverBuf, "File Transfer Complete", 22) == 0) {
+            fclose(f);
+            break;
+          }
+
+          // if the previously received buff is the same as the currently received buffer, 
+          // likely the ack we sent was never received, so do not 
+          // write the buffer into the file
+
+
+          if(strncmp(previouslyReceivedBuf, receiverBuf, BUFSIZE) != 0) { 
+            fwrite(receiverBuf, sizeof(char), indexOfEOFInFile(receiverBuf, BUFSIZE), f);
+            //previouslyReceivedBuf = receiverBuf;
+            printf("Getting the last char of receiverBuf: %d\n", receiverBuf[BUFSIZE-1]);
+            memcpy(previouslyReceivedBuf, receiverBuf, BUFSIZE);
+          }
+        } while(1);
+
       }
 
       else if(strncmp(command, "delete", 6) == 0) {
@@ -144,18 +220,22 @@ int main(int argc, char **argv) {
 
         do {
           serverlen = sizeof(serveraddr);
+          printf("Sending delete command\n");
           n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&serveraddr, serverlen);
           if (n < 0) {
             error("ERROR in sendto");
           }
 
           //bzero(buf, BUFSIZE);
+          printf("receiving command\n");
           n = recvfrom(sockfd, receiverBuf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
           if(n < 0) {
             error("ERROR in recvfrom");
           }
 
-        } while(strncmp(receiverBuf, "NORESP", 6) == 0);
+          printf("%s\n", receiverBuf);
+
+        } while(strncmp(receiverBuf, "Error: file does not exist.", 28) != 0 && strncmp(receiverBuf, "Deleted File", 13) != 0);
 
         printf("%s\n", receiverBuf);
       }
@@ -190,4 +270,16 @@ int main(int argc, char **argv) {
     return 0;
 
     
+}
+
+
+int indexOfEOFInFile(char *buf, int bufSize) {
+
+  for(int i = 0; i < bufSize; i++) {
+    if(buf[i] == 0) {
+      return i;
+    }
+  }
+
+  return bufSize;
 }

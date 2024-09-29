@@ -133,6 +133,7 @@ int main(int argc, char **argv) {
 
         // send the name of the file to the client
         char ack[4];
+        bzero(buf, 4);
         char recieveBuffer[BUFSIZE];
         do {
           bzero(buf, BUFSIZE);
@@ -140,6 +141,7 @@ int main(int argc, char **argv) {
           n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &clientaddr, clientlen);
           if(n < 0) {
             error("ERROR in sendto");
+            continue; // try to send again if send has failed
           }
 
           
@@ -172,6 +174,7 @@ int main(int argc, char **argv) {
         n = sendto(sockfd, endOfMessage, strlen(endOfMessage), 0, (struct sockaddr *) &clientaddr, clientlen);
         if(n < 0) {
           error("ERROR in sendto");
+          continue; // try to send again if send has failed
         }
 
         bzero(recieveBuffer, BUFSIZE);
@@ -196,6 +199,95 @@ int main(int argc, char **argv) {
     }
 
     else if(strncmp(command, "get", 3) == 0) {
+      printf("Attempting to get file %s\n", fileName);
+
+      FILE *f = fopen(fileName, "rb");
+      if(f == NULL) {
+        char fileDoesntExist[] = "get command received file no exist";
+        printf("File does not exist on the server\n");
+        n = sendto(sockfd, fileDoesntExist, strlen(fileDoesntExist), 0, (struct sockaddr *) &clientaddr, clientlen);
+        if(n < 0) {
+          error("Error in sendto");
+        }
+        continue;
+      }
+      
+      char fileDoesExist[] = "get command received";
+
+      n = sendto(sockfd, fileDoesExist, strlen(fileDoesExist), 0, (struct sockaddr *) &clientaddr, clientlen);
+      if(n < 0) {
+        error("Error in sendto");
+      }
+      
+      // if the file does exist, send it in 1024 byte chunks
+
+      printf("File does exist\n");
+
+      // get the file size
+      fseek(f, 0L, SEEK_END);
+      int fileSize = ftell(f);
+      rewind(f);
+
+      int amountOfBytesNeededToSend = fileSize;
+
+      char sendBuf[BUFSIZE];
+      char receiveBuf[BUFSIZE];
+      bzero(receiveBuf, BUFSIZE);
+      int numBytesRead = 0;
+      int numBytesToSend = BUFSIZE;
+      do{
+        bzero(sendBuf, BUFSIZE);
+        if(amountOfBytesNeededToSend < BUFSIZE) {
+          numBytesToSend = amountOfBytesNeededToSend;
+        }
+        numBytesRead = fread(sendBuf, 1, sizeof(sendBuf), f);
+        amountOfBytesNeededToSend -= BUFSIZE;
+        if(numBytesRead <= 0) {
+          // all bytes have been sent.
+          printf("All bytes have been read\n");
+          break;
+        }
+
+
+        do {
+          bzero(receiveBuf, BUFSIZE);
+          printf("sending buf\n");
+          printf("%s\n", sendBuf);
+          n = sendto(sockfd, sendBuf, numBytesToSend, 0, (struct sockaddr *)&clientaddr, clientlen);
+          if(n < 0) {
+            error("sendto failed\n");
+            continue;
+          }
+          printf("awaiting ack\n");
+          n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, &clientlen);
+          if(n < 0) {
+            error("recvfrom failed\n");
+            continue;
+          }
+        } while(strncmp(receiveBuf, "ack", 3) != 0);
+
+
+      } while(1);
+
+
+      fclose(f);
+      // finally send an indication to the client that file transmission has ceased.
+      //sendBuf = "File Transfer Complete";
+      char sendMessageReceived[BUFSIZE] = "File Transfer Complete";
+      do {
+        bzero(receiveBuf, BUFSIZE);
+        n = sendto(sockfd, sendMessageReceived, BUFSIZE, 0, (struct sockaddr *)&clientaddr, clientlen);
+        if(n < 0) {
+          error("sendto failed\n");
+          continue;
+        }
+        n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, &clientlen);
+        if(n < 0) {
+          error("recvfrom failed\n");
+          continue;
+        }
+      } while(strncmp(receiveBuf, "ack", 3) != 0);
+
 
     }
 
@@ -214,10 +306,12 @@ int main(int argc, char **argv) {
       if(f == NULL) {
         // the file does not exist
         char fileDoesntExist[] = "Error: file does not exist.";
+        printf("Sending to client\n");
         n = sendto(sockfd, fileDoesntExist, strlen(fileDoesntExist), 0, (struct sockaddr *) &clientaddr, clientlen);
         if(n < 0) {
           error("Error in sendto");
         }
+        printf("%s\n", fileDoesntExist);
         continue;
       }
 
