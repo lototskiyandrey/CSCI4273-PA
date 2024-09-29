@@ -138,10 +138,29 @@ int main(int argc, char **argv) {
       }
 
       else if(strncmp(command, "delete", 6) == 0) {
-        printf("Entered delete command!\n");
+        //printf("Entered delete command!\n");
+
+        char receiverBuf[BUFSIZE] = "NORESP";
+
+        do {
+          serverlen = sizeof(serveraddr);
+          n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&serveraddr, serverlen);
+          if (n < 0) {
+            error("ERROR in sendto");
+          }
+
+          //bzero(buf, BUFSIZE);
+          n = recvfrom(sockfd, receiverBuf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
+          if(n < 0) {
+            error("ERROR in recvfrom");
+          }
+
+        } while(strncmp(receiverBuf, "NORESP", 6) == 0);
+
+        printf("%s\n", receiverBuf);
       }
 
-      else if(strncmp(command, "delete", 6) == 0) {
+      else if(strncmp(command, "put", 3) == 0) {
         printf("Entered put command!\n");
       }
 

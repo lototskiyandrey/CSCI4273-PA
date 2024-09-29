@@ -203,8 +203,36 @@ int main(int argc, char **argv) {
       
     }
 
+
+    /* The stop and wait algorithm is not necessary to implement here, because we do not necessarily need the client to know that the file was deleted.*/
     else if(strncmp(command, "delete", 3) == 0) {
-      
+      //bzero(buf, BUFSIZE);  
+
+      printf("Deleting file %s\n", fileName);
+
+      FILE *f = fopen(fileName, "rb");
+      if(f == NULL) {
+        // the file does not exist
+        char fileDoesntExist[] = "Error: file does not exist.";
+        n = sendto(sockfd, fileDoesntExist, strlen(fileDoesntExist), 0, (struct sockaddr *) &clientaddr, clientlen);
+        if(n < 0) {
+          error("Error in sendto");
+        }
+        continue;
+      }
+
+      fclose(f);
+      n = remove(fileName);
+      if(n < 0) {
+        error("Error in remove");
+      }
+
+      printf("Successfully deleted file %s.\n", fileName);
+      char fileWasDeleted[] = "Deleted File";
+      n = sendto(sockfd, fileWasDeleted, strlen(fileWasDeleted), 0, (struct sockaddr *) &clientaddr, clientlen);
+      if(n < 0) {
+        error("Error in sendto");
+      }
     }
 
     /*
