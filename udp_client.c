@@ -40,24 +40,24 @@ int main(int argc, char **argv) {
     hostname = argv[1];
     portno = atoi(argv[2]);
 
-    // /* socket: create the socket */
-    // sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    // if (sockfd < 0) 
-    //     error("ERROR opening socket");
+    /* socket: create the socket */
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) 
+        error("ERROR opening socket");
 
-    // /* gethostbyname: get the server's DNS entry */
-    // server = gethostbyname(hostname);
-    // if (server == NULL) {
-    //     fprintf(stderr,"ERROR, no such host as %s\n", hostname);
-    //     exit(0);
-    // }
+    /* gethostbyname: get the server's DNS entry */
+    server = gethostbyname(hostname);
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host as %s\n", hostname);
+        exit(0);
+    }
 
-    // /* build the server's Internet address */
-    // bzero((char *) &serveraddr, sizeof(serveraddr));
-    // serveraddr.sin_family = AF_INET;
-    // bcopy((char *)server->h_addr, 
-	  // (char *)&serveraddr.sin_addr.s_addr, server->h_length);
-    // serveraddr.sin_port = htons(portno);
+    /* build the server's Internet address */
+    bzero((char *) &serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, 
+	  (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+    serveraddr.sin_port = htons(portno);
 
 
     // --------------------------------------------
@@ -69,32 +69,59 @@ int main(int argc, char **argv) {
       // Get message from the user
 
       bzero(buf, BUFSIZE);
-      printf("Enter a Command: (ls, exit, get [file_name], put [file_name], delete [file_name]\n");
+      printf("Enter a Command: ls, exit, get [file_name], put [file_name], delete [file_name], put [file_name]\n");
       printf("> ");
       fgets(buf, BUFSIZE, stdin);
 
-      char command[10];
+      char command[BUFSIZE], inputFile[BUFSIZE];
 
-      snprintf(command, sizeof command, "%.03s", buf);
+      sscanf(buf, "%s, %s", command, inputFile);
 
-      //printf("%s\n", buf);
 
-      //printf("%s\n", command);
+      if(strncmp(command, "ls", 2) == 0) {
 
-      if(strcmp(buf, "ls\n\0") == 0) {
-        printf("Entered the ls command!\n");
+        /* send the message to the server */
+        serverlen = sizeof(serveraddr);
+        n = sendto(sockfd, buf, strlen(buf), 0, &serveraddr, serverlen);
+        if (n < 0) {
+          error("ERROR in sendto");
+        }
+
+        /* print the server's reply */
+        n = recvfrom(sockfd, buf, strlen(buf), 0, &serveraddr, &serverlen);
+        if(n < 0) {
+          error("ERROR in recvfrom");
+          // print the buffer sent back
+          printf("%s\n", buf);
+        }
       } 
 
-      if(strcmp(buf,"exit\n\0") == 0) {
-        printf("Entered the exit command\n");
+      else if(strncmp(command,"exit", 4) == 0) {
+        serverlen = sizeof(serveraddr);
+        n = sendto(sockfd, buf, strlen(buf), 0, &serveraddr, serverlen);
+        if (n < 0) {
+          error("ERROR in sendto");
+        }
+
+        close(sockfd);
+        printf("Connection Terminated.\n");
+        break;  
       } 
 
-      if(strcmp(command,"get\0") == 0) {
+      else if(strncmp(command,"get", 3) == 0) {
         printf("Entered get command!\n");
       }
 
-      if(strcmp(command, "del\0") == 0) {
+      else if(strncmp(command, "delete", 6) == 0) {
         printf("Entered delete command!\n");
+      }
+
+      else if(strncmp(command, "delete", 6) == 0) {
+        printf("Entered put command!\n");
+      }
+
+      else {
+        // Unknown Command
       }
     }
 
