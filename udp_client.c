@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include <stdbool.h>
 
 #define BUFSIZE 1024
 
@@ -241,7 +242,107 @@ int main(int argc, char **argv) {
       }
 
       else if(strncmp(command, "put", 3) == 0) {
-        printf("Entered put command!\n");
+        
+        //printf("%s\n", inputFile);
+        //printf("%s\n", command);
+
+        /* First send the message to the server */
+
+        // check if fileName Exists
+
+        FILE *f = fopen(inputFile, "rb");
+        if(f == NULL) {
+          // file does not exist
+          printf("Error: File %s does not exist.\n", inputFile);
+          continue;
+        }
+
+        // since fileName Exists - establish connection with the server
+        char sendBuf[BUFSIZE];
+        char receiveBuf[BUFSIZE];
+
+        bzero(sendBuf, BUFSIZE);
+        bzero(receiveBuf, BUFSIZE);
+
+        // strncpy(sendBuf, "Connection Established", 22);
+
+        do {
+          serverlen = sizeof(serveraddr);
+          bzero(receiveBuf, BUFSIZE);
+          n = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, serverlen);
+          if(n < 0) {
+            error("sendto error\n");
+            continue;
+          }
+          printf("receiving ack\n");
+          n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
+          if(n < 0) {
+            error("recvfrom error\n");
+            continue;
+          }
+        } while(strncmp(receiveBuf, "ack", 3) != 0);
+
+        // with connection with server established, begin reading the contents of the file, and sending 
+        // them to the server. 
+
+        printf("Connection Established\n");
+
+        do {
+          bzero(receiveBuf, BUFSIZE);
+          bzero(sendBuf, BUFSIZE);
+
+          serverlen = sizeof(serveraddr);
+          bzero(receiveBuf, BUFSIZE);
+          n = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, serverlen);
+          if(n < 0) {
+            error("sendto error\n");
+            continue;
+          }
+
+          // read the file in 1024 bytes chunks
+          int numBytesSent = fread(sendBuf, sizeof(char), BUFSIZE, f);
+          if(numBytesSent <= 0) {
+            // all bytes sent
+            printf("All Byte have been sent\n");
+            break;
+          }
+
+          // send the chunk to the server. Await ack. If no ack, repeat.
+          do {
+            bzero(receiveBuf, BUFSIZE);
+            bzero(sendBuf, BUFSIZE);  
+            n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&serveraddr, serverlen);
+            if(n < 0) {
+              error("sendto error\n");
+              continue;
+            }
+            n = recvfrom(sockfd, receiveBuf, strlen(receiveBuf), 0, (struct sockaddr*)&serveraddr, &serverlen);
+            if(n < 0) {
+              error("recvfrom error\n");
+              continue;
+            }
+          } while(strncmp(receiveBuf, "ack", 3) != 0);
+
+        } while(1);
+
+        // Finally, with all bytes sent, announce to the server that all bytes have been sent
+        // and to stop the connection.
+
+        do {
+          bzero(receiveBuf, BUFSIZE);
+          char endMessage[] = "File Transfer Complete";
+          n = sendto(sockfd, endMessage, strlen(endMessage), 0, (struct sockaddr*)&serveraddr, serverlen);
+          if(n < 0) {
+            error("sendto error\n");
+            continue;
+          }
+          n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&serveraddr, &serverlen);
+          if(n < 0) {
+            error("recvfrom error\n");
+            continue;
+          }
+        } while(strncmp(receiveBuf, "ack", 3) != 0);
+        
       }
 
       else {

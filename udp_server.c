@@ -24,6 +24,8 @@ void error(char *msg) {
   exit(1);
 }
 
+int indexOfEOFInFile(char *buf, int bufSize);
+
 int main(int argc, char **argv) {
   int sockfd; /* socket */
   int portno; /* port to listen on */
@@ -292,7 +294,82 @@ int main(int argc, char **argv) {
     }
 
     else if(strncmp(command, "put", 3) == 0) {
+
+      printf("Received buf %s", buf);
       
+      // First establish a connection with the client
+
+      char receiveBuf[BUFSIZE], sendBuf[BUFSIZE];
+      
+    
+
+      
+      bzero(receiveBuf, BUFSIZE);
+      strncpy(sendBuf, "ack", 3);
+      // clientlen = sizeof(clientaddr);
+      /*printf("Receiving initialization message\n");
+      n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+      if(n < 0) {
+        error("recvfrom failed\n");
+        continue;
+      }
+      printf("Check receieved buf: %s\n", receiveBuf);
+      if(strncmp(receiveBuf, "Connection Established", 22) != 0) {
+        continue;
+      }*/
+
+      n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, clientlen);
+      printf("Sent ack\n");
+      if(n < 0) {
+        error("sendto failed\n");
+      }
+      //break;
+      
+      int acklost = 0;
+
+      FILE *f = fopen(fileName, "w");
+      char previousBufReceived[BUFSIZE];
+      do {
+        bzero(receiveBuf, BUFSIZE);
+        bzero(sendBuf, BUFSIZE);
+
+        
+        n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+        printf("Receieved message %s\n", receiveBuf);
+        if(n < 0) {
+          error("recvfrom failed\n");
+          continue;
+        } 
+
+        // the ack sent in response to the client must never have been receieved.
+        if(strncmp(receiveBuf, buf, 5) == 0) {
+          printf("Wrong Packet ack must never have been receieved\n");
+          fclose(f);
+          remove(fileName);
+          acklost = 1;
+          break;
+        }
+
+        
+        strncpy(sendBuf, "ack", 3);
+        printf("Sending ack\n");
+        n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, clientlen);
+        if(n < 0) {
+          error("sendto failed\n");
+          continue;
+        }
+
+        if(strncmp(previousBufReceived, receiveBuf, BUFSIZE) != 0) {
+          printf("Writing message\n");
+          fwrite(receiveBuf, sizeof(char), indexOfEOFInFile(receiveBuf, BUFSIZE), f);
+          memcpy(previousBufReceived, receiveBuf, BUFSIZE);
+        }
+
+      } while(1);
+
+      if(acklost == 0) {
+        fclose(f);
+      }
     }
 
 
@@ -336,4 +413,15 @@ int main(int argc, char **argv) {
       error("ERROR in sendto");
     */
   }
+}
+
+int indexOfEOFInFile(char *buf, int bufSize) {
+
+  for(int i = 0; i < bufSize; i++) {
+    if(buf[i] == 0) {
+      return i;
+    }
+  }
+
+  return bufSize;
 }
