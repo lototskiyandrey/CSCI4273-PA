@@ -250,6 +250,8 @@ int main(int argc, char **argv) {
 
         // check if fileName Exists
 
+        printf("sending buf: %s\n", buf);
+
         FILE *f = fopen(inputFile, "rb");
         if(f == NULL) {
           // file does not exist
@@ -269,6 +271,7 @@ int main(int argc, char **argv) {
         do {
           serverlen = sizeof(serveraddr);
           bzero(receiveBuf, BUFSIZE);
+          printf("sending buf\n");
           n = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, serverlen);
           if(n < 0) {
             error("sendto error\n");
@@ -276,6 +279,7 @@ int main(int argc, char **argv) {
           }
           printf("receiving ack\n");
           n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
+          printf("received buf: %s\n", receiveBuf);
           if(n < 0) {
             error("recvfrom error\n");
             continue;
@@ -291,6 +295,7 @@ int main(int argc, char **argv) {
           bzero(receiveBuf, BUFSIZE);
           bzero(sendBuf, BUFSIZE);
 
+          /*
           serverlen = sizeof(serveraddr);
           bzero(receiveBuf, BUFSIZE);
           n = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, serverlen);
@@ -298,7 +303,7 @@ int main(int argc, char **argv) {
             error("sendto error\n");
             continue;
           }
-
+          */
           // read the file in 1024 bytes chunks
           int numBytesSent = fread(sendBuf, sizeof(char), BUFSIZE, f);
           if(numBytesSent <= 0) {
@@ -310,13 +315,15 @@ int main(int argc, char **argv) {
           // send the chunk to the server. Await ack. If no ack, repeat.
           do {
             bzero(receiveBuf, BUFSIZE);
-            bzero(sendBuf, BUFSIZE);  
+            // bzero(sendBuf, BUFSIZE);  
+            printf("sending %s\n", sendBuf);
             n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&serveraddr, serverlen);
             if(n < 0) {
               error("sendto error\n");
               continue;
             }
-            n = recvfrom(sockfd, receiveBuf, strlen(receiveBuf), 0, (struct sockaddr*)&serveraddr, &serverlen);
+            n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&serveraddr, &serverlen);
+            printf("received %s\n", receiveBuf);
             if(n < 0) {
               error("recvfrom error\n");
               continue;

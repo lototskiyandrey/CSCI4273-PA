@@ -295,7 +295,7 @@ int main(int argc, char **argv) {
 
     else if(strncmp(command, "put", 3) == 0) {
 
-      printf("Received buf %s", buf);
+      printf("Received buf %s\n", buf);
       
       // First establish a connection with the client
 
@@ -329,12 +329,14 @@ int main(int argc, char **argv) {
 
       FILE *f = fopen(fileName, "w");
       char previousBufReceived[BUFSIZE];
+      bzero(previousBufReceived, BUFSIZE);
       do {
         bzero(receiveBuf, BUFSIZE);
         bzero(sendBuf, BUFSIZE);
 
         
         n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+        //printf("receieved %s\n", receiveBuf);
         printf("Receieved message %s\n", receiveBuf);
         if(n < 0) {
           error("recvfrom failed\n");
@@ -343,6 +345,7 @@ int main(int argc, char **argv) {
 
         // the ack sent in response to the client must never have been receieved.
         if(strncmp(receiveBuf, buf, 5) == 0) {
+          printf("receieved buf: %s\n", receiveBuf);
           printf("Wrong Packet ack must never have been receieved\n");
           fclose(f);
           remove(fileName);
@@ -352,13 +355,21 @@ int main(int argc, char **argv) {
 
         
         strncpy(sendBuf, "ack", 3);
-        printf("Sending ack\n");
+        printf("Sending: %s\n", sendBuf);
+        //strncpy(sendBuf, "ack", 3);
         n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, clientlen);
+        printf("ack sent\n");
         if(n < 0) {
           error("sendto failed\n");
           continue;
         }
 
+        if(strncmp(receiveBuf, "File Transfer Complete", 22) == 0) {
+          // file transfer is complete close connection
+          break;
+        }
+
+        printf(" is previous buf the same as this buf? %d\n", strncmp(previousBufReceived, receiveBuf, BUFSIZE));
         if(strncmp(previousBufReceived, receiveBuf, BUFSIZE) != 0) {
           printf("Writing message\n");
           fwrite(receiveBuf, sizeof(char), indexOfEOFInFile(receiveBuf, BUFSIZE), f);
