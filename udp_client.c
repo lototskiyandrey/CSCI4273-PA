@@ -20,6 +20,7 @@
 int indexOfEOFInFile(char *buf, int bufSize);
 char *getUserCommand(char *buf);
 char *getFileInputted(char *buf);
+int doesFileExist(char *file);
 
 /* 
  * error - wrapper for perror
@@ -76,23 +77,19 @@ int main(int argc, char **argv) {
       bzero(userInput[1], BUFSIZE);
 
       bzero(buf, BUFSIZE);
-      //n bzero(inputFile, BUFSIZE);
       printf("Enter a Command: ls, exit, get [file_name], put [file_name], delete [file_name], put [file_name]\n> ");
       fgets(buf, BUFSIZE, stdin);
 
       strcpy(userInput[0], getUserCommand(buf));
-      //userInput = getUserInput(buf, userInput);
-
-      //fprintf(stderr, "command inputted: %s\n", userInput[0]);
-      //fprintf(stderr, "buf: %s\n", buf);
-
-      //userInput[1] = getFileInputted(buf);
       strcpy(userInput[1], getFileInputted(buf));
-
-      //fprintf(stderr, "file inputted: %s\n", userInput[1]);
 
       if(strncmp(userInput[0], "ERROR", 5) == 0 || strncmp(userInput[1], "ERROR", 5) == 0) {
         fprintf(stderr, "ERROR: COMMAND INVALID\n");
+        continue;
+      }
+
+      if(strncmp(userInput[0], "put", 3) == 0 && doesFileExist(userInput[1]) == 0) {
+        fprintf(stderr, "ERROR: FILE %s ON CLIENT DOES NOT EXIST\n", userInput[1]);
         continue;
       }
 
@@ -472,4 +469,14 @@ char *getFileInputted(char *buf) {
   bzero(buf, BUFSIZE);
   strncpy(buf, "No File to Send", 5);
   return buf;
+}
+
+int doesFileExist(char *file) {
+  // return 1 if yes, 0 if no
+  FILE *f = fopen(file, "rb");
+  if(f == NULL) {
+    return 0;
+  }
+  fclose(f);
+  return 1;
 }
