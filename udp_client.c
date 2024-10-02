@@ -19,6 +19,7 @@
 
 int indexOfEOFInFile(char *buf, int bufSize);
 char *getUserCommand(char *buf);
+char *getFileInputted(char *buf);
 
 /* 
  * error - wrapper for perror
@@ -76,11 +77,19 @@ int main(int argc, char **argv) {
 
       bzero(buf, BUFSIZE);
       //n bzero(inputFile, BUFSIZE);
-      printf("Enter a Command: ls, exit, get [file_name], put [file_name], delete [file_name], put [file_name]\n>");
+      printf("Enter a Command: ls, exit, get [file_name], put [file_name], delete [file_name], put [file_name]\n> ");
       fgets(buf, BUFSIZE, stdin);
 
       strcpy(userInput[0], getUserCommand(buf));
       //userInput = getUserInput(buf, userInput);
+
+      fprintf(stderr, "command inputted: %s\n", userInput[0]);
+      fprintf(stderr, "buf: %s\n", buf);
+
+      //userInput[1] = getFileInputted(buf);
+      strcpy(userInput[1], getFileInputted(buf));
+
+      fprintf(stderr, "file inputted: %s\n", userInput[1]);
     }
 
 
@@ -393,8 +402,6 @@ int main(int argc, char **argv) {
     //   error("ERROR in recvfrom");
     // printf("Echo from server: %s", buf);
 
-
-
     return 0;
 
     
@@ -414,10 +421,6 @@ int indexOfEOFInFile(char *buf, int bufSize) {
 
 char *getUserCommand(char *buf) {
 
-  //char buf[BUFSIZE];
-  // char command[BUFSIZE];
-
-  //char *userInputs[2];
 
   if(strncmp(buf, "ls", 2) == 0) {    
     return "ls";
@@ -427,17 +430,40 @@ char *getUserCommand(char *buf) {
     return "exit";
   }
 
-  if(strncmp(buf, "get", 4) == 0) {
+  if(strncmp(buf, "get", 3) == 0) {
     return "get";
   }
 
-  if(strncmp(buf, "put", 4) == 0) {
+  if(strncmp(buf, "put", 3) == 0) {
     return "put";
   }
 
-  if(strncmp(buf, "delete", 4) == 0) {
+  if(strncmp(buf, "delete", 6) == 0) {
     return "delete";
   }
   
   return "Error";
+}
+
+char *getFileInputted(char *buf) {
+  // bzero(returnString, BUFSIZE);
+  if(strncmp(buf, "get", 3) == 0 || strncmp(buf, "put", 3) == 0 || strncmp(buf, "delete", 6) == 0) {
+    char command[BUFSIZE], input[BUFSIZE];
+    bzero(command, BUFSIZE);
+    bzero(input, BUFSIZE);
+    sscanf(buf, "%s %s", command, input);
+    fprintf(stderr, "%d\n", strlen(input));
+    if(strlen(input) == 0) {
+      bzero(buf, BUFSIZE);
+      strncpy(buf, "Error", 5);
+      return buf;
+    }
+    bzero(buf, BUFSIZE);
+    strncpy(buf, input, strlen(input));
+    return buf;
+  }
+
+  bzero(buf, BUFSIZE);
+  strncpy(buf, "Error", 5);
+  return buf;
 }
