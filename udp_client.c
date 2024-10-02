@@ -26,7 +26,7 @@ char *getFileInputted(char *buf);
 int doesFileExist(char *file);
 int sendPacket(int sockfd, struct sockaddr_in serveraddr, char *buf);
 int receivePacket(int sockfd, struct sockaddr_in serveraddr, char *buf);
-int sendAndReceieveMessageSequence(char *sendBuf, char *receiveBuf, int sockfd, struct sockaddr_in serveraddr, unsigned int sleepTime);
+int sendAndReceieveMessage(char *sendBuf, char *receiveBuf, int sockfd, struct sockaddr_in serveraddr, unsigned int sleepTime);
 
 /* 
  * error - wrapper for perror
@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
       strcat(messageToSend, " ");
       strcat(messageToSend, userInput[1]);
 
-      int numBytesReceived = sendAndReceieveMessageSequence(messageToSend, messageToReceive, sockfd, serveraddr, sleepTime);
+      int numBytesReceived = sendAndReceieveMessage(messageToSend, messageToReceive, sockfd, serveraddr, sleepTime);
       fprintf(stderr, "Receieved Message: %s\n", messageToReceive);
     }
 
@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
     
 }
 
-int sendAndReceieveMessageSequence(char *sendBuf, char *receiveBuf, int sockfd, struct sockaddr_in serveraddr, unsigned int sleepTime) {
+int sendAndReceieveMessage(char *sendBuf, char *receiveBuf, int sockfd, struct sockaddr_in serveraddr, unsigned int sleepTime) {
 
   int numBytesReceived;
   int i = 0;
@@ -175,15 +175,15 @@ char *getUserCommand(char *buf) {
     return "exit";
   }
 
-  if(strncmp(buf, "get", 3) == 0) {
+  if(strncmp(buf, "get ", 4) == 0) {
     return "get";
   }
 
-  if(strncmp(buf, "put", 3) == 0) {
+  if(strncmp(buf, "put ", 4) == 0) {
     return "put";
   }
 
-  if(strncmp(buf, "delete", 6) == 0) {
+  if(strncmp(buf, "delete ", 7) == 0) {
     return "delete";
   }
   

@@ -28,6 +28,7 @@ void error(char *msg) {
 int indexOfEOFInFile(char *buf, int bufSize);
 int waitConnectionFromClient(int sockfd, struct sockaddr_in *clientaddr, char *connectionMessage, int flags, struct hostent *hostp, char *hostaddrp);
 int sendPacket(int sockfd, struct sockaddr_in *clientaddr, char *buf);
+char *getUserCommand(char *buf);
 
 int main(int argc, char **argv) {
   int sockfd; /* socket */
@@ -123,6 +124,11 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Echoing received Message: %s\n", connectionMessage);
     int numBytesSent = sendPacket(sockfd, clientaddr, connectionMessage);
+
+    char command[BUFSIZE], inputFile[BUFSIZE];
+    bzero(command, BUFSIZE);
+    bzero(inputFile, BUFSIZE);
+
     // printf("server received %ld/%d bytes: %s\n", strlen(buf), n, buf);
 
     // when a client connects, service that client.
@@ -511,7 +517,7 @@ int waitConnectionFromClient(int sockfd, struct sockaddr_in *clientaddr, char *c
 int indexOfEOFInFile(char *buf, int bufSize) {
 
   for(int i = 0; i < bufSize; i++) {
-    if(buf[i] == 0) {
+    if(buf[i] == EOF) {
       return i;
     }
   }
@@ -519,4 +525,32 @@ int indexOfEOFInFile(char *buf, int bufSize) {
   return bufSize;
 }
 
+char *getUserCommand(char *buf) {
 
+
+  if(strncmp(buf, "ls", 2) == 0) {    
+    return "ls";
+  }
+
+  if(strncmp(buf, "exit", 4) == 0) {
+    return "exit";
+  }
+
+  if(strncmp(buf, "get ", 4) == 0) {
+    return "get";
+  }
+
+  if(strncmp(buf, "put ", 4) == 0) {
+    return "put";
+  }
+
+  if(strncmp(buf, "delete ", 7) == 0) {
+    return "delete";
+  }
+  
+  return "ERROR";
+}
+
+int sendFile(int sockfd, struct sockaddr_in *clientaddr, char *buf) {
+  
+}
