@@ -11,6 +11,9 @@
 #include <netinet/in.h>
 #include <netdb.h> 
 #include <stdbool.h>
+#include <time.h>
+#include <poll.h>
+#include <fcntl.h>
 
 #define BUFSIZE 1024
 
@@ -21,6 +24,8 @@ int indexOfEOFInFile(char *buf, int bufSize);
 char *getUserCommand(char *buf);
 char *getFileInputted(char *buf);
 int doesFileExist(char *file);
+int sendPacket(int sockfd, struct sockaddr_in serveraddr, char *buf);
+int sendPacket(int sockfd, struct sockaddr_in serveraddr, char *buf);
 
 /* 
  * error - wrapper for perror
@@ -31,13 +36,17 @@ void error(char *msg) {
 }
 
 int main(int argc, char **argv) {
-    int sockfd, portno, n;
+    int sockfd, portno;
     int serverlen;
     struct sockaddr_in serveraddr;
     struct hostent *server;
     char *hostname;
     char buf[BUFSIZE];
     char command[BUFSIZE], inputFile[BUFSIZE];
+    int numBytes;
+    int flags;
+
+    int pS; // if programState (pS) is 0, then 
 
     /* check command line arguments */
     if (argc != 3) {
@@ -49,6 +58,8 @@ int main(int argc, char **argv) {
 
     /* socket: create the socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    flags = fcntl(sockfd, F_GETFL);
+    fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
     if (sockfd < 0) 
         error("ERROR opening socket");
 
@@ -71,6 +82,8 @@ int main(int argc, char **argv) {
     printf("Welcome to Primitive ftp\n");
     // --------------------------------------------
 
+    // set the socket to be non-blocking (will prevent the program from hanging in the event of packet loss)
+
     while(true) {
       char userInput[2][BUFSIZE];
       bzero(userInput[0], BUFSIZE);
@@ -92,6 +105,12 @@ int main(int argc, char **argv) {
         fprintf(stderr, "ERROR: FILE %s ON CLIENT DOES NOT EXIST\n", userInput[1]);
         continue;
       }
+
+      // Send message
+
+      // Listen for response
+
+      // If no reponse after a certain period of time, send again
 
     }
 
@@ -414,7 +433,7 @@ int main(int argc, char **argv) {
 int indexOfEOFInFile(char *buf, int bufSize) {
 
   for(int i = 0; i < bufSize; i++) {
-    if(buf[i] == 0) {
+    if(buf[i] == EOF) {
       return i;
     }
   }
@@ -479,4 +498,28 @@ int doesFileExist(char *file) {
   }
   fclose(f);
   return 1;
+}
+
+int sendPacket(int sockfd, struct sockaddr_in serveraddr, char *buf) {
+  int serverlen = sizeof(serveraddr);
+
+  int numBytesSent = sendto(sockfd, buf, BUFSIZE, 0, &serveraddr, serverlen);
+
+  if(numBytesSent < 0) {
+    error("ERROR in sendto");
+  }
+
+  return numBytesSent;
+}
+
+int receivePacket(int sockfd, struct sockaddr_in serveraddr, char *buf) {
+  int serverlen = sizeof(serveraddr);
+
+  int numBytesReceieved = recvfrom(sockfd, buf, BUFSIZE, &serveraddr, &serverlen);
+
+  if(numBytesReceieved < 0) {
+    error("ERROR in recvfrom");
+  }
+
+  return numBytesReceieved;
 }
