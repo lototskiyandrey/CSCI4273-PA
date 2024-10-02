@@ -26,15 +26,17 @@ void error(char *msg) {
 }
 
 int indexOfEOFInFile(char *buf, int bufSize);
-int waitConnectionFromClient(int sockfd, struct sockaddr_in clientaddr, char *connectionMessage, int flags, struct hostent *hostp, char *hostaddrp);
-int sendPacket(int sockfd, struct sockaddr_in clientaddr, char *buf);
+int waitConnectionFromClient(int sockfd, struct sockaddr_in *clientaddr, char *connectionMessage, int flags, struct hostent *hostp, char *hostaddrp);
+int sendPacket(int sockfd, struct sockaddr_in *clientaddr, char *buf);
 
 int main(int argc, char **argv) {
   int sockfd; /* socket */
   int portno; /* port to listen on */
   //int clientlen; /* byte size of client's address */
-  struct sockaddr_in serveraddr; /* server's addr */
-  struct sockaddr_in clientaddr; /* client addr */
+  struct sockaddr_in *serveraddr; /* server's addr */
+  struct sockaddr_in *clientaddr; /* client addr */
+  struct sockaddr_in initializeServerAddr;
+  struct sockaddr_in initializeClientAddr;
   struct hostent *hostp; /* client host info */
   //char buf[BUFSIZE]; /* message buf */
   char *hostaddrp; /* dotted decimal host addr string */
@@ -71,22 +73,24 @@ int main(int argc, char **argv) {
   /*
    * build the server's Internet address
    */
-  bzero((char *) &serveraddr, sizeof(serveraddr));
-  serveraddr.sin_family = AF_INET;
-  serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  serveraddr.sin_port = htons((unsigned short)portno);
+  bzero((char *) &(initializeServerAddr), sizeof(initializeServerAddr));
+  (initializeServerAddr).sin_family = AF_INET;
+  (initializeServerAddr).sin_addr.s_addr = htonl(INADDR_ANY);
+  (initializeServerAddr).sin_port = htons((unsigned short)portno);
 
   /* 
    * bind: associate the parent socket with a port 
    */
-  if (bind(sockfd, (struct sockaddr *) &serveraddr, 
-	   sizeof(serveraddr)) < 0) 
+  if (bind(sockfd, (struct sockaddr *) &(initializeServerAddr), sizeof(initializeServerAddr)) < 0) 
     error("ERROR on binding");
 
   /* 
    * main loop: wait for a datagram, then echo it
    */
   //clientlen = sizeof(clientaddr);
+
+  serveraddr = &initializeServerAddr;
+  clientaddr = &initializeClientAddr;
 
   while(1) {
     fprintf(stderr, "Waiting for a client\n");
@@ -95,29 +99,29 @@ int main(int argc, char **argv) {
 
     char connectionMessage[BUFSIZE];
     bzero(connectionMessage, BUFSIZE);
-    //(void)waitConnectionFromClient(sockfd, clientaddr, connectionMessage, flags, hostp, hostaddrp);
+    (void)waitConnectionFromClient(sockfd, clientaddr, connectionMessage, flags, hostp, hostaddrp);
 
-    fcntl(sockfd, F_SETFL, flags);
-    bzero(connectionMessage, BUFSIZE);
-    int clientlen = sizeof(clientaddr);
-    int numBytesReceived = recvfrom(sockfd, connectionMessage, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
-    if(numBytesReceived < 0) {
-      error("ERROR in recvfrom");
-    }
+    // fcntl(sockfd, F_SETFL, flags);
+    // bzero(connectionMessage, BUFSIZE);
+    // int clientlen = sizeof(clientaddr);
+    // int numBytesReceived = recvfrom(sockfd, connectionMessage, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+    // if(numBytesReceived < 0) {
+    //   error("ERROR in recvfrom");
+    // }
 
-    hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
-    if (hostp == NULL){
-      error("ERROR on gethostbyaddr");
-    }
-    hostaddrp = inet_ntoa(clientaddr.sin_addr);
-    if (hostaddrp == NULL){
-      error("ERROR on inet_ntoa\n");
-      }
-    printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
+    // hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+    // if (hostp == NULL){
+    //   error("ERROR on gethostbyaddr");
+    // }
+    // hostaddrp = inet_ntoa(clientaddr.sin_addr);
+    // if (hostaddrp == NULL){
+    //   error("ERROR on inet_ntoa\n");
+    //   }
+    // printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
 
-    fprintf(stderr, "Message Received: %s\n", connectionMessage);
+    // fprintf(stderr, "Message Received: %s\n", connectionMessage);
 
-    fprintf(stderr, "Echoing received Message\n");
+    fprintf(stderr, "Echoing received Message: %s\n", connectionMessage);
     int numBytesSent = sendPacket(sockfd, clientaddr, connectionMessage);
     // printf("server received %ld/%d bytes: %s\n", strlen(buf), n, buf);
 
@@ -469,10 +473,10 @@ int main(int argc, char **argv) {
   // }
 }
 
-int sendPacket(int sockfd, struct sockaddr_in clientaddr, char *buf) {
-  int clientlen = sizeof(clientaddr);
+int sendPacket(int sockfd, struct sockaddr_in *clientaddr, char *buf) {
+  int clientlen = sizeof(*clientaddr);
 
-  int numBytesSent = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, clientlen);
+  int numBytesSent = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&(*clientaddr), clientlen);
 
   if(numBytesSent < 0) {
     error("ERROR in sendto");
@@ -481,20 +485,20 @@ int sendPacket(int sockfd, struct sockaddr_in clientaddr, char *buf) {
   return numBytesSent;
 }
 
-int waitConnectionFromClient(int sockfd, struct sockaddr_in clientaddr, char *connectionMessage, int flags, struct hostent *hostp, char *hostaddrp) {
+int waitConnectionFromClient(int sockfd, struct sockaddr_in *clientaddr, char *connectionMessage, int flags, struct hostent *hostp, char *hostaddrp) {
   fcntl(sockfd, F_SETFL, flags);
   bzero(connectionMessage, BUFSIZE);
-  int clientlen = sizeof(clientaddr);
-  int numBytesReceived = recvfrom(sockfd, connectionMessage, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+  int clientlen = sizeof(*clientaddr);
+  int numBytesReceived = recvfrom(sockfd, connectionMessage, BUFSIZE, 0, (struct sockaddr*)clientaddr, &clientlen);
   if(numBytesReceived < 0) {
     error("ERROR in recvfrom");
   }
 
-  hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+  hostp = gethostbyaddr((const char *)&((*clientaddr).sin_addr.s_addr), sizeof((*clientaddr).sin_addr.s_addr), AF_INET);
   if (hostp == NULL){
     error("ERROR on gethostbyaddr");
   }
-  hostaddrp = inet_ntoa(clientaddr.sin_addr);
+  hostaddrp = inet_ntoa((*clientaddr).sin_addr);
   if (hostaddrp == NULL){
     error("ERROR on inet_ntoa\n");
     }
