@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <dirent.h>
+#include <fcntl.h>
 
 #define BUFSIZE 1024
 
@@ -25,18 +26,21 @@ void error(char *msg) {
 }
 
 int indexOfEOFInFile(char *buf, int bufSize);
+int waitConnectionFromClient(int sockfd, struct sockaddr_in clientaddr, char *connectionMessage, int flags, struct hostent *hostp, char *hostaddrp);
+int sendPacket(int sockfd, struct sockaddr_in clientaddr, char *buf);
 
 int main(int argc, char **argv) {
   int sockfd; /* socket */
   int portno; /* port to listen on */
-  int clientlen; /* byte size of client's address */
+  //int clientlen; /* byte size of client's address */
   struct sockaddr_in serveraddr; /* server's addr */
   struct sockaddr_in clientaddr; /* client addr */
   struct hostent *hostp; /* client host info */
-  char buf[BUFSIZE]; /* message buf */
+  //char buf[BUFSIZE]; /* message buf */
   char *hostaddrp; /* dotted decimal host addr string */
   int optval; /* flag value for setsockopt */
-  int n; /* message byte size */
+  //int n; /* message byte size */
+  int flags;
 
   /* 
    * check command line arguments 
@@ -51,6 +55,8 @@ int main(int argc, char **argv) {
    * socket: create the parent socket 
    */
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  flags = fcntl(sockfd, F_GETFL);
+  fcntl(sockfd, F_SETFL, flags);
   if (sockfd < 0) 
     error("ERROR opening socket");
 
@@ -80,350 +86,422 @@ int main(int argc, char **argv) {
   /* 
    * main loop: wait for a datagram, then echo it
    */
-  clientlen = sizeof(clientaddr);
-  while (1) {
+  //clientlen = sizeof(clientaddr);
 
-    /*
-     * recvfrom: receive a UDP datagram from a client
-     */
-    bzero(buf, BUFSIZE);
-    n = recvfrom(sockfd, buf, BUFSIZE, 0,
-		 (struct sockaddr *) &clientaddr, &clientlen);
-    if (n < 0)
+  while(1) {
+    fprintf(stderr, "Waiting for a client\n");
+
+    // wait for a client to connect.
+
+    char connectionMessage[BUFSIZE];
+    bzero(connectionMessage, BUFSIZE);
+    //(void)waitConnectionFromClient(sockfd, clientaddr, connectionMessage, flags, hostp, hostaddrp);
+
+    fcntl(sockfd, F_SETFL, flags);
+    bzero(connectionMessage, BUFSIZE);
+    int clientlen = sizeof(clientaddr);
+    int numBytesReceived = recvfrom(sockfd, connectionMessage, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+    if(numBytesReceived < 0) {
       error("ERROR in recvfrom");
+    }
 
-    /* 
-     * gethostbyaddr: determine who sent the datagram
-     */
-    hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, 
-			  sizeof(clientaddr.sin_addr.s_addr), AF_INET);
-    if (hostp == NULL)
+    hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+    if (hostp == NULL){
       error("ERROR on gethostbyaddr");
+    }
     hostaddrp = inet_ntoa(clientaddr.sin_addr);
-    if (hostaddrp == NULL)
+    if (hostaddrp == NULL){
       error("ERROR on inet_ntoa\n");
-    printf("server received datagram from %s (%s)\n", 
-	   hostp->h_name, hostaddrp);
-    printf("server received %ld/%d bytes: %s\n", strlen(buf), n, buf);
+      }
+    printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
+
+    fprintf(stderr, "Message Received: %s\n", connectionMessage);
+
+    fprintf(stderr, "Echoing received Message\n");
+    int numBytesSent = sendPacket(sockfd, clientaddr, connectionMessage);
+    // printf("server received %ld/%d bytes: %s\n", strlen(buf), n, buf);
+
+    // when a client connects, service that client.
+  }
+
+  // while (1) {
+
+  //   /*
+  //    * recvfrom: receive a UDP datagram from a client
+  //    */
+  //   bzero(buf, BUFSIZE);
+  //   n = recvfrom(sockfd, buf, BUFSIZE, 0,
+	// 	 (struct sockaddr *) &clientaddr, &clientlen);
+  //   if (n < 0)
+  //     error("ERROR in recvfrom");
+
+  //   /* 
+  //    * gethostbyaddr: determine who sent the datagram
+  //    */
+  //   hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, 
+	// 		  sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+  //   if (hostp == NULL)
+  //     error("ERROR on gethostbyaddr");
+  //   hostaddrp = inet_ntoa(clientaddr.sin_addr);
+  //   if (hostaddrp == NULL)
+  //     error("ERROR on inet_ntoa\n");
+  //   printf("server received datagram from %s (%s)\n", 
+	//    hostp->h_name, hostaddrp);
+  //   printf("server received %ld/%d bytes: %s\n", strlen(buf), n, buf);
     
-    /* 
-     * sendto: echo the input back to the client 
-     */
+  //   /* 
+  //    * sendto: echo the input back to the client 
+  //    */
 
-    // first determine what command was sent.
+  //   // first determine what command was sent.
 
-    char command[BUFSIZE], fileName[BUFSIZE];
+  //   char command[BUFSIZE], fileName[BUFSIZE];
 
-    sscanf(buf, "%s %s", command, fileName);
+  //   sscanf(buf, "%s %s", command, fileName);
 
-    if(strncmp(command, "ls", 2) == 0) {
+  //   if(strncmp(command, "ls", 2) == 0) {
 
-      bzero(buf, BUFSIZE);
-      DIR *dirp;
+  //     bzero(buf, BUFSIZE);
+  //     DIR *dirp;
 
-      dirp = opendir(".");
+  //     dirp = opendir(".");
 
-      while(1) {
-        struct dirent *dp = readdir(dirp);
-        if(dp == NULL) {
-          break;
-        }
-        // strcat(buf, dp->d_name);
-        //strncat(buf, "\n", 1);
+  //     while(1) {
+  //       struct dirent *dp = readdir(dirp);
+  //       if(dp == NULL) {
+  //         break;
+  //       }
+  //       // strcat(buf, dp->d_name);
+  //       //strncat(buf, "\n", 1);
 
-        printf("Sending message %s\n", dp->d_name);
+  //       printf("Sending message %s\n", dp->d_name);
 
-        // send the name of the file to the client
-        char ack[4];
-        bzero(buf, 4);
-        char recieveBuffer[BUFSIZE];
-        do {
-          bzero(buf, BUFSIZE);
-          strcat(buf, dp->d_name);
-          n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &clientaddr, clientlen);
-          if(n < 0) {
-            error("ERROR in sendto");
-            continue; // try to send again if send has failed
-          }
+  //       // send the name of the file to the client
+  //       char ack[4];
+  //       bzero(buf, 4);
+  //       char recieveBuffer[BUFSIZE];
+  //       do {
+  //         bzero(buf, BUFSIZE);
+  //         strcat(buf, dp->d_name);
+  //         n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &clientaddr, clientlen);
+  //         if(n < 0) {
+  //           error("ERROR in sendto");
+  //           continue; // try to send again if send has failed
+  //         }
 
           
 
-          // recieve an ACK from the client
-          bzero(recieveBuffer, BUFSIZE);
-          n = recvfrom(sockfd, recieveBuffer, BUFSIZE, 0, (struct sockaddr *) &clientaddr, &clientlen);
+  //         // recieve an ACK from the client
+  //         bzero(recieveBuffer, BUFSIZE);
+  //         n = recvfrom(sockfd, recieveBuffer, BUFSIZE, 0, (struct sockaddr *) &clientaddr, &clientlen);
 
-          sscanf(recieveBuffer, "%s", ack);
+  //         sscanf(recieveBuffer, "%s", ack);
 
-          if(strncmp(ack, "ack", 3) == 0) {
-            printf("Acknowledgement Received.\n");
-          }
+  //         if(strncmp(ack, "ack", 3) == 0) {
+  //           printf("Acknowledgement Received.\n");
+  //         }
 
-          // printf("%s\n", dp->d_name);
-          // printf("Ack: %s\n", ack);
-          // printf("Buffer state: %s\n", buf);
-          // printf("Recieve Buffer State: %s\n", recieveBuffer);
-        } while(strncmp(ack, "ack", 3) != 0);
+  //         // printf("%s\n", dp->d_name);
+  //         // printf("Ack: %s\n", ack);
+  //         // printf("Buffer state: %s\n", buf);
+  //         // printf("Recieve Buffer State: %s\n", recieveBuffer);
+  //       } while(strncmp(ack, "ack", 3) != 0);
         
-      }
+  //     }
 
-      char endOfMessage[7] = "000000\0";
+  //     char endOfMessage[7] = "000000\0";
 
-      // send the indicator that we have finished transmission to the host.
-      char ack[4];
-      char recieveBuffer[BUFSIZE];
-      do {
-        printf("Transmission complete: Sending termination message\n");
-        n = sendto(sockfd, endOfMessage, strlen(endOfMessage), 0, (struct sockaddr *) &clientaddr, clientlen);
-        if(n < 0) {
-          error("ERROR in sendto");
-          continue; // try to send again if send has failed
-        }
+  //     // send the indicator that we have finished transmission to the host.
+  //     char ack[4];
+  //     char recieveBuffer[BUFSIZE];
+  //     do {
+  //       printf("Transmission complete: Sending termination message\n");
+  //       n = sendto(sockfd, endOfMessage, strlen(endOfMessage), 0, (struct sockaddr *) &clientaddr, clientlen);
+  //       if(n < 0) {
+  //         error("ERROR in sendto");
+  //         continue; // try to send again if send has failed
+  //       }
 
-        bzero(recieveBuffer, BUFSIZE);
-        n = recvfrom(sockfd, recieveBuffer, BUFSIZE, 0, (struct sockaddr *) &clientaddr, &clientlen);
+  //       bzero(recieveBuffer, BUFSIZE);
+  //       n = recvfrom(sockfd, recieveBuffer, BUFSIZE, 0, (struct sockaddr *) &clientaddr, &clientlen);
 
-        sscanf(recieveBuffer, "%s", ack);
+  //       sscanf(recieveBuffer, "%s", ack);
 
-        if(strncmp(ack, "ack", 3) == 0) {
-          printf("Acknowledgement Received.\n");
-        }
+  //       if(strncmp(ack, "ack", 3) == 0) {
+  //         printf("Acknowledgement Received.\n");
+  //       }
 
-      } while(strncmp(ack, "ack", 3) != 0);
+  //     } while(strncmp(ack, "ack", 3) != 0);
       
 
 
 
-    }
+  //   }
 
-    else if(strncmp(command, "exit", 4) == 0) {
-      printf("Exiting Program.\n");
-      break;
-    }
+  //   else if(strncmp(command, "exit", 4) == 0) {
+  //     printf("Exiting Program.\n");
+  //     break;
+  //   }
 
-    else if(strncmp(command, "get", 3) == 0) {
-      printf("Attempting to get file %s\n", fileName);
+  //   else if(strncmp(command, "get", 3) == 0) {
+  //     printf("Attempting to get file %s\n", fileName);
 
-      FILE *f = fopen(fileName, "rb");
-      if(f == NULL) {
-        char fileDoesntExist[] = "get command received file no exist";
-        printf("File does not exist on the server\n");
-        n = sendto(sockfd, fileDoesntExist, strlen(fileDoesntExist), 0, (struct sockaddr *) &clientaddr, clientlen);
-        if(n < 0) {
-          error("Error in sendto");
-        }
-        continue;
-      }
+  //     FILE *f = fopen(fileName, "rb");
+  //     if(f == NULL) {
+  //       char fileDoesntExist[] = "get command received file no exist";
+  //       printf("File does not exist on the server\n");
+  //       n = sendto(sockfd, fileDoesntExist, strlen(fileDoesntExist), 0, (struct sockaddr *) &clientaddr, clientlen);
+  //       if(n < 0) {
+  //         error("Error in sendto");
+  //       }
+  //       continue;
+  //     }
       
-      char fileDoesExist[] = "get command received";
+  //     char fileDoesExist[] = "get command received";
 
-      n = sendto(sockfd, fileDoesExist, strlen(fileDoesExist), 0, (struct sockaddr *) &clientaddr, clientlen);
-      if(n < 0) {
-        error("Error in sendto");
-      }
+  //     n = sendto(sockfd, fileDoesExist, strlen(fileDoesExist), 0, (struct sockaddr *) &clientaddr, clientlen);
+  //     if(n < 0) {
+  //       error("Error in sendto");
+  //     }
       
-      // if the file does exist, send it in 1024 byte chunks
+  //     // if the file does exist, send it in 1024 byte chunks
 
-      printf("File does exist\n");
+  //     printf("File does exist\n");
 
-      // get the file size
-      fseek(f, 0L, SEEK_END);
-      int fileSize = ftell(f);
-      rewind(f);
+  //     // get the file size
+  //     fseek(f, 0L, SEEK_END);
+  //     int fileSize = ftell(f);
+  //     rewind(f);
 
-      int amountOfBytesNeededToSend = fileSize;
+  //     int amountOfBytesNeededToSend = fileSize;
 
-      char sendBuf[BUFSIZE];
-      char receiveBuf[BUFSIZE];
-      bzero(receiveBuf, BUFSIZE);
-      int numBytesRead = 0;
-      int numBytesToSend = BUFSIZE;
-      do{
-        bzero(sendBuf, BUFSIZE);
-        if(amountOfBytesNeededToSend < BUFSIZE) {
-          numBytesToSend = amountOfBytesNeededToSend;
-        }
-        numBytesRead = fread(sendBuf, 1, sizeof(sendBuf), f);
-        amountOfBytesNeededToSend -= BUFSIZE;
-        if(numBytesRead <= 0) {
-          // all bytes have been sent.
-          printf("All bytes have been read\n");
-          break;
-        }
-
-
-        do {
-          bzero(receiveBuf, BUFSIZE);
-          printf("sending buf\n");
-          printf("%s\n", sendBuf);
-          n = sendto(sockfd, sendBuf, numBytesToSend, 0, (struct sockaddr *)&clientaddr, clientlen);
-          if(n < 0) {
-            error("sendto failed\n");
-            continue;
-          }
-          printf("awaiting ack\n");
-          n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, &clientlen);
-          if(n < 0) {
-            error("recvfrom failed\n");
-            continue;
-          }
-        } while(strncmp(receiveBuf, "ack", 3) != 0);
+  //     char sendBuf[BUFSIZE];
+  //     char receiveBuf[BUFSIZE];
+  //     bzero(receiveBuf, BUFSIZE);
+  //     int numBytesRead = 0;
+  //     int numBytesToSend = BUFSIZE;
+  //     do{
+  //       bzero(sendBuf, BUFSIZE);
+  //       if(amountOfBytesNeededToSend < BUFSIZE) {
+  //         numBytesToSend = amountOfBytesNeededToSend;
+  //       }
+  //       numBytesRead = fread(sendBuf, 1, sizeof(sendBuf), f);
+  //       amountOfBytesNeededToSend -= BUFSIZE;
+  //       if(numBytesRead <= 0) {
+  //         // all bytes have been sent.
+  //         printf("All bytes have been read\n");
+  //         break;
+  //       }
 
 
-      } while(1);
+  //       do {
+  //         bzero(receiveBuf, BUFSIZE);
+  //         printf("sending buf\n");
+  //         printf("%s\n", sendBuf);
+  //         n = sendto(sockfd, sendBuf, numBytesToSend, 0, (struct sockaddr *)&clientaddr, clientlen);
+  //         if(n < 0) {
+  //           error("sendto failed\n");
+  //           continue;
+  //         }
+  //         printf("awaiting ack\n");
+  //         n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, &clientlen);
+  //         if(n < 0) {
+  //           error("recvfrom failed\n");
+  //           continue;
+  //         }
+  //       } while(strncmp(receiveBuf, "ack", 3) != 0);
 
 
-      fclose(f);
-      // finally send an indication to the client that file transmission has ceased.
-      //sendBuf = "File Transfer Complete";
-      char sendMessageReceived[BUFSIZE] = "File Transfer Complete";
-      do {
-        bzero(receiveBuf, BUFSIZE);
-        n = sendto(sockfd, sendMessageReceived, BUFSIZE, 0, (struct sockaddr *)&clientaddr, clientlen);
-        if(n < 0) {
-          error("sendto failed\n");
-          continue;
-        }
-        n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, &clientlen);
-        if(n < 0) {
-          error("recvfrom failed\n");
-          continue;
-        }
-      } while(strncmp(receiveBuf, "ack", 3) != 0);
+  //     } while(1);
 
 
-    }
+  //     fclose(f);
+  //     // finally send an indication to the client that file transmission has ceased.
+  //     //sendBuf = "File Transfer Complete";
+  //     char sendMessageReceived[BUFSIZE] = "File Transfer Complete";
+  //     do {
+  //       bzero(receiveBuf, BUFSIZE);
+  //       n = sendto(sockfd, sendMessageReceived, BUFSIZE, 0, (struct sockaddr *)&clientaddr, clientlen);
+  //       if(n < 0) {
+  //         error("sendto failed\n");
+  //         continue;
+  //       }
+  //       n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, &clientlen);
+  //       if(n < 0) {
+  //         error("recvfrom failed\n");
+  //         continue;
+  //       }
+  //     } while(strncmp(receiveBuf, "ack", 3) != 0);
 
-    else if(strncmp(command, "put", 3) == 0) {
 
-      printf("Received buf %s\n", buf);
+  //   }
+
+  //   else if(strncmp(command, "put", 3) == 0) {
+
+  //     printf("Received buf %s\n", buf);
       
-      // First establish a connection with the client
+  //     // First establish a connection with the client
 
-      char receiveBuf[BUFSIZE], sendBuf[BUFSIZE];
+  //     char receiveBuf[BUFSIZE], sendBuf[BUFSIZE];
       
     
 
       
-      bzero(receiveBuf, BUFSIZE);
-      strncpy(sendBuf, "ack", 3);
-      // clientlen = sizeof(clientaddr);
-      /*printf("Receiving initialization message\n");
-      n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
-      if(n < 0) {
-        error("recvfrom failed\n");
-        continue;
-      }
-      printf("Check receieved buf: %s\n", receiveBuf);
-      if(strncmp(receiveBuf, "Connection Established", 22) != 0) {
-        continue;
-      }*/
+  //     bzero(receiveBuf, BUFSIZE);
+  //     strncpy(sendBuf, "ack", 3);
+  //     // clientlen = sizeof(clientaddr);
+  //     /*printf("Receiving initialization message\n");
+  //     n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+  //     if(n < 0) {
+  //       error("recvfrom failed\n");
+  //       continue;
+  //     }
+  //     printf("Check receieved buf: %s\n", receiveBuf);
+  //     if(strncmp(receiveBuf, "Connection Established", 22) != 0) {
+  //       continue;
+  //     }*/
 
-      n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, clientlen);
-      printf("Sent ack\n");
-      if(n < 0) {
-        error("sendto failed\n");
-      }
-      //break;
+  //     n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, clientlen);
+  //     printf("Sent ack\n");
+  //     if(n < 0) {
+  //       error("sendto failed\n");
+  //     }
+  //     //break;
       
-      int acklost = 0;
+  //     int acklost = 0;
 
-      FILE *f = fopen(fileName, "w");
-      char previousBufReceived[BUFSIZE];
-      bzero(previousBufReceived, BUFSIZE);
-      do {
-        bzero(receiveBuf, BUFSIZE);
-        bzero(sendBuf, BUFSIZE);
-
-        
-        n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
-        //printf("receieved %s\n", receiveBuf);
-        printf("Receieved message %s\n", receiveBuf);
-        if(n < 0) {
-          error("recvfrom failed\n");
-          continue;
-        } 
-
-        // the ack sent in response to the client must never have been receieved.
-        if(strncmp(receiveBuf, buf, 5) == 0) {
-          printf("receieved buf: %s\n", receiveBuf);
-          printf("Wrong Packet ack must never have been receieved\n");
-          fclose(f);
-          remove(fileName);
-          acklost = 1;
-          break;
-        }
+  //     FILE *f = fopen(fileName, "w");
+  //     char previousBufReceived[BUFSIZE];
+  //     bzero(previousBufReceived, BUFSIZE);
+  //     do {
+  //       bzero(receiveBuf, BUFSIZE);
+  //       bzero(sendBuf, BUFSIZE);
 
         
-        strncpy(sendBuf, "ack", 3);
-        printf("Sending: %s\n", sendBuf);
-        //strncpy(sendBuf, "ack", 3);
-        n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, clientlen);
-        printf("ack sent\n");
-        if(n < 0) {
-          error("sendto failed\n");
-          continue;
-        }
+  //       n = recvfrom(sockfd, receiveBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+  //       //printf("receieved %s\n", receiveBuf);
+  //       printf("Receieved message %s\n", receiveBuf);
+  //       if(n < 0) {
+  //         error("recvfrom failed\n");
+  //         continue;
+  //       } 
 
-        if(strncmp(receiveBuf, "File Transfer Complete", 22) == 0) {
-          // file transfer is complete close connection
-          break;
-        }
+  //       // the ack sent in response to the client must never have been receieved.
+  //       if(strncmp(receiveBuf, buf, 5) == 0) {
+  //         printf("receieved buf: %s\n", receiveBuf);
+  //         printf("Wrong Packet ack must never have been receieved\n");
+  //         fclose(f);
+  //         remove(fileName);
+  //         acklost = 1;
+  //         break;
+  //       }
 
-        printf(" is previous buf the same as this buf? %d\n", strncmp(previousBufReceived, receiveBuf, BUFSIZE));
-        if(strncmp(previousBufReceived, receiveBuf, BUFSIZE) != 0) {
-          printf("Writing message\n");
-          fwrite(receiveBuf, sizeof(char), indexOfEOFInFile(receiveBuf, BUFSIZE), f);
-          memcpy(previousBufReceived, receiveBuf, BUFSIZE);
-        }
+        
+  //       strncpy(sendBuf, "ack", 3);
+  //       printf("Sending: %s\n", sendBuf);
+  //       //strncpy(sendBuf, "ack", 3);
+  //       n = sendto(sockfd, sendBuf, BUFSIZE, 0, (struct sockaddr*)&clientaddr, clientlen);
+  //       printf("ack sent\n");
+  //       if(n < 0) {
+  //         error("sendto failed\n");
+  //         continue;
+  //       }
 
-      } while(1);
+  //       if(strncmp(receiveBuf, "File Transfer Complete", 22) == 0) {
+  //         // file transfer is complete close connection
+  //         break;
+  //       }
 
-      if(acklost == 0) {
-        fclose(f);
-      }
-    }
+  //       printf(" is previous buf the same as this buf? %d\n", strncmp(previousBufReceived, receiveBuf, BUFSIZE));
+  //       if(strncmp(previousBufReceived, receiveBuf, BUFSIZE) != 0) {
+  //         printf("Writing message\n");
+  //         fwrite(receiveBuf, sizeof(char), indexOfEOFInFile(receiveBuf, BUFSIZE), f);
+  //         memcpy(previousBufReceived, receiveBuf, BUFSIZE);
+  //       }
+
+  //     } while(1);
+
+  //     if(acklost == 0) {
+  //       fclose(f);
+  //     }
+  //   }
 
 
-    /* The stop and wait algorithm is not necessary to implement here, because we do not necessarily need the client to know that the file was deleted.*/
-    else if(strncmp(command, "delete", 3) == 0) {
-      //bzero(buf, BUFSIZE);  
+  //   // The stop and wait algorithm is not necessary to implement here, because we do not necessarily need the client to know that the file was deleted.
+  //   else if(strncmp(command, "delete", 3) == 0) {
+  //     //bzero(buf, BUFSIZE);  
 
-      printf("Deleting file %s\n", fileName);
+  //     printf("Deleting file %s\n", fileName);
 
-      FILE *f = fopen(fileName, "rb");
-      if(f == NULL) {
-        // the file does not exist
-        char fileDoesntExist[] = "Error: file does not exist.";
-        printf("Sending to client\n");
-        n = sendto(sockfd, fileDoesntExist, strlen(fileDoesntExist), 0, (struct sockaddr *) &clientaddr, clientlen);
-        if(n < 0) {
-          error("Error in sendto");
-        }
-        printf("%s\n", fileDoesntExist);
-        continue;
-      }
+  //     FILE *f = fopen(fileName, "rb");
+  //     if(f == NULL) {
+  //       // the file does not exist
+  //       char fileDoesntExist[] = "Error: file does not exist.";
+  //       printf("Sending to client\n");
+  //       n = sendto(sockfd, fileDoesntExist, strlen(fileDoesntExist), 0, (struct sockaddr *) &clientaddr, clientlen);
+  //       if(n < 0) {
+  //         error("Error in sendto");
+  //       }
+  //       printf("%s\n", fileDoesntExist);
+  //       continue;
+  //     }
 
-      fclose(f);
-      n = remove(fileName);
-      if(n < 0) {
-        error("Error in remove");
-      }
+  //     fclose(f);
+  //     n = remove(fileName);
+  //     if(n < 0) {
+  //       error("Error in remove");
+  //     }
 
-      printf("Successfully deleted file %s.\n", fileName);
-      char fileWasDeleted[] = "Deleted File";
-      n = sendto(sockfd, fileWasDeleted, strlen(fileWasDeleted), 0, (struct sockaddr *) &clientaddr, clientlen);
-      if(n < 0) {
-        error("Error in sendto");
-      }
-    }
+  //     printf("Successfully deleted file %s.\n", fileName);
+  //     char fileWasDeleted[] = "Deleted File";
+  //     n = sendto(sockfd, fileWasDeleted, strlen(fileWasDeleted), 0, (struct sockaddr *) &clientaddr, clientlen);
+  //     if(n < 0) {
+  //       error("Error in sendto");
+  //     }
+  //   }
 
-    /*
-    n = sendto(sockfd, buf, strlen(buf), 0, 
-	       (struct sockaddr *) &clientaddr, clientlen);
-    if (n < 0) 
-      error("ERROR in sendto");
-    */
+    
+  //   // n = sendto(sockfd, buf, strlen(buf), 0, 
+	//   //      (struct sockaddr *) &clientaddr, clientlen);
+  //   // if (n < 0) 
+  //   //   error("ERROR in sendto");
+    
+  // }
+}
+
+int sendPacket(int sockfd, struct sockaddr_in clientaddr, char *buf) {
+  int clientlen = sizeof(clientaddr);
+
+  int numBytesSent = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&clientaddr, clientlen);
+
+  if(numBytesSent < 0) {
+    error("ERROR in sendto");
   }
+
+  return numBytesSent;
+}
+
+int waitConnectionFromClient(int sockfd, struct sockaddr_in clientaddr, char *connectionMessage, int flags, struct hostent *hostp, char *hostaddrp) {
+  fcntl(sockfd, F_SETFL, flags);
+  bzero(connectionMessage, BUFSIZE);
+  int clientlen = sizeof(clientaddr);
+  int numBytesReceived = recvfrom(sockfd, connectionMessage, BUFSIZE, 0, (struct sockaddr*)&clientaddr, &clientlen);
+  if(numBytesReceived < 0) {
+    error("ERROR in recvfrom");
+  }
+
+  hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+  if (hostp == NULL){
+    error("ERROR on gethostbyaddr");
+  }
+  hostaddrp = inet_ntoa(clientaddr.sin_addr);
+  if (hostaddrp == NULL){
+    error("ERROR on inet_ntoa\n");
+    }
+  printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
+
+
+  return numBytesReceived;
 }
 
 int indexOfEOFInFile(char *buf, int bufSize) {
@@ -436,3 +514,5 @@ int indexOfEOFInFile(char *buf, int bufSize) {
 
   return bufSize;
 }
+
+
