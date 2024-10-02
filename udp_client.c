@@ -18,6 +18,7 @@
 #define false 0
 
 int indexOfEOFInFile(char *buf, int bufSize);
+char *getUserCommand(char *buf);
 
 /* 
  * error - wrapper for perror
@@ -69,6 +70,22 @@ int main(int argc, char **argv) {
     // --------------------------------------------
 
     while(true) {
+      char userInput[2][BUFSIZE];
+      bzero(userInput[0], BUFSIZE);
+      bzero(userInput[1], BUFSIZE);
+
+      bzero(buf, BUFSIZE);
+      //n bzero(inputFile, BUFSIZE);
+      printf("Enter a Command: ls, exit, get [file_name], put [file_name], delete [file_name], put [file_name]\n>");
+      fgets(buf, BUFSIZE, stdin);
+
+      strcpy(userInput[0], getUserCommand(buf));
+      //userInput = getUserInput(buf, userInput);
+    }
+
+
+    /*
+    while(true) {
 
       // Get message from the user
 
@@ -84,7 +101,7 @@ int main(int argc, char **argv) {
 
       if(strncmp(command, "ls", 2) == 0) {
 
-        /* send the message to the server */
+        // send the message to the server 
         serverlen = sizeof(serveraddr);
         n = sendto(sockfd, command, strlen(command), 0, (struct sockaddr *)&serveraddr, serverlen);
         if (n < 0) {
@@ -96,7 +113,7 @@ int main(int argc, char **argv) {
         //char data[1024];
         bzero(buf, BUFSIZE);
         do {
-          /* print the server's reply */
+          // print the server's reply 
           bzero(buf, BUFSIZE);
           n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
           if(n < 0) {
@@ -246,7 +263,7 @@ int main(int argc, char **argv) {
         //printf("%s\n", inputFile);
         //printf("%s\n", command);
 
-        /* First send the message to the server */
+        // First send the message to the server
 
         // check if fileName Exists
 
@@ -295,15 +312,15 @@ int main(int argc, char **argv) {
           bzero(receiveBuf, BUFSIZE);
           bzero(sendBuf, BUFSIZE);
 
-          /*
-          serverlen = sizeof(serveraddr);
-          bzero(receiveBuf, BUFSIZE);
-          n = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, serverlen);
-          if(n < 0) {
-            error("sendto error\n");
-            continue;
-          }
-          */
+          
+          // serverlen = sizeof(serveraddr);
+          // bzero(receiveBuf, BUFSIZE);
+          // n = sendto(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, serverlen);
+          // if(n < 0) {
+          //   error("sendto error\n");
+          //   continue;
+          // }
+          
           // read the file in 1024 bytes chunks
           int numBytesSent = fread(sendBuf, sizeof(char), BUFSIZE, f);
           if(numBytesSent <= 0) {
@@ -358,7 +375,7 @@ int main(int argc, char **argv) {
         printf("Unknown Command\n.");
       }
     }
-
+    */
     // /* get a message from the user */
     // bzero(buf, BUFSIZE);
     // printf("Please enter msg: ");
@@ -375,6 +392,9 @@ int main(int argc, char **argv) {
     // if (n < 0) 
     //   error("ERROR in recvfrom");
     // printf("Echo from server: %s", buf);
+
+
+
     return 0;
 
     
@@ -390,4 +410,34 @@ int indexOfEOFInFile(char *buf, int bufSize) {
   }
 
   return bufSize;
+}
+
+char *getUserCommand(char *buf) {
+
+  //char buf[BUFSIZE];
+  // char command[BUFSIZE];
+
+  //char *userInputs[2];
+
+  if(strncmp(buf, "ls", 2) == 0) {    
+    return "ls";
+  }
+
+  if(strncmp(buf, "exit", 4) == 0) {
+    return "exit";
+  }
+
+  if(strncmp(buf, "get", 4) == 0) {
+    return "get";
+  }
+
+  if(strncmp(buf, "put", 4) == 0) {
+    return "put";
+  }
+
+  if(strncmp(buf, "delete", 4) == 0) {
+    return "delete";
+  }
+  
+  return "Error";
 }
