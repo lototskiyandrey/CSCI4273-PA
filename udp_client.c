@@ -83,13 +83,19 @@ int main(int argc, char **argv) {
       strcpy(userInput[0], getUserCommand(buf));
       //userInput = getUserInput(buf, userInput);
 
-      fprintf(stderr, "command inputted: %s\n", userInput[0]);
-      fprintf(stderr, "buf: %s\n", buf);
+      //fprintf(stderr, "command inputted: %s\n", userInput[0]);
+      //fprintf(stderr, "buf: %s\n", buf);
 
       //userInput[1] = getFileInputted(buf);
       strcpy(userInput[1], getFileInputted(buf));
 
-      fprintf(stderr, "file inputted: %s\n", userInput[1]);
+      //fprintf(stderr, "file inputted: %s\n", userInput[1]);
+
+      if(strncmp(userInput[0], "ERROR", 5) == 0 || strncmp(userInput[1], "ERROR", 5) == 0) {
+        fprintf(stderr, "ERROR: COMMAND INVALID\n");
+        continue;
+      }
+
     }
 
 
@@ -422,27 +428,27 @@ int indexOfEOFInFile(char *buf, int bufSize) {
 char *getUserCommand(char *buf) {
 
 
-  if(strncmp(buf, "ls", 2) == 0) {    
+  if(strncmp(buf, "ls ", 3) == 0) {    
     return "ls";
   }
 
-  if(strncmp(buf, "exit", 4) == 0) {
+  if(strncmp(buf, "exit ", 5) == 0) {
     return "exit";
   }
 
-  if(strncmp(buf, "get", 3) == 0) {
+  if(strncmp(buf, "get ", 4) == 0) {
     return "get";
   }
 
-  if(strncmp(buf, "put", 3) == 0) {
+  if(strncmp(buf, "put ", 4) == 0) {
     return "put";
   }
 
-  if(strncmp(buf, "delete", 6) == 0) {
+  if(strncmp(buf, "delete ", 7) == 0) {
     return "delete";
   }
   
-  return "Error";
+  return "ERROR";
 }
 
 char *getFileInputted(char *buf) {
@@ -452,10 +458,10 @@ char *getFileInputted(char *buf) {
     bzero(command, BUFSIZE);
     bzero(input, BUFSIZE);
     sscanf(buf, "%s %s", command, input);
-    fprintf(stderr, "%d\n", strlen(input));
+    //fprintf(stderr, "%d\n", strlen(input));
     if(strlen(input) == 0) {
       bzero(buf, BUFSIZE);
-      strncpy(buf, "Error", 5);
+      strncpy(buf, "ERROR", 5);
       return buf;
     }
     bzero(buf, BUFSIZE);
@@ -464,6 +470,6 @@ char *getFileInputted(char *buf) {
   }
 
   bzero(buf, BUFSIZE);
-  strncpy(buf, "Error", 5);
+  strncpy(buf, "No File to Send", 5);
   return buf;
 }
