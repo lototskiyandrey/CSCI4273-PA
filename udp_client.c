@@ -115,6 +115,7 @@ int main(int argc, char **argv) {
       // Send message
       char messageToSend[BUFSIZE], messageToReceive[BUFSIZE];
       bzero(messageToReceive, BUFSIZE);
+      bzero(messageToSend, BUFSIZE);
       strcat(messageToSend, userInput[0]);
       strcat(messageToSend, " ");
       strcat(messageToSend, userInput[1]);
@@ -208,7 +209,7 @@ char *getFileInputted(char *buf) {
   }
 
   bzero(buf, BUFSIZE);
-  strncpy(buf, "No File to Send", 16);
+  strncpy(buf, "NoFiletoSend", 13);
   return buf;
 }
 
