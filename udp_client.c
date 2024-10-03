@@ -27,6 +27,9 @@ int doesFileExist(char *file);
 int sendPacket(int sockfd, struct sockaddr_in serveraddr, char *buf);
 int receivePacket(int sockfd, struct sockaddr_in serveraddr, char *buf);
 int sendAndReceieveMessage(char *sendBuf, char *receiveBuf, int sockfd, struct sockaddr_in serveraddr, unsigned int sleepTime);
+int receiveFile(int sockfd, struct sockaddr_in serveraddr, char *fileName, unsigned int sleepTime, int flags);
+void setBlocking(int sock);
+void setNonBlocking(int sock);
 
 /* 
  * error - wrapper for perror
@@ -61,7 +64,7 @@ int main(int argc, char **argv) {
     /* socket: create the socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     flags = fcntl(sockfd, F_GETFL);
-    fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+    
     if (sockfd < 0) 
         error("ERROR opening socket");
 
@@ -119,9 +122,26 @@ int main(int argc, char **argv) {
       strcat(messageToSend, userInput[0]);
       strcat(messageToSend, " ");
       strcat(messageToSend, userInput[1]);
-
+      //fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
       int numBytesReceived = sendAndReceieveMessage(messageToSend, messageToReceive, sockfd, serveraddr, sleepTime);
-      fprintf(stderr, "Receieved Message: %s\n", messageToReceive);
+      //fcntl(sockfd, F_SETFL, flags);
+      fprintf(stderr, "Received Message: %s\n", messageToReceive);
+      
+      fprintf(stderr, "%d\n", strncmp(messageToReceive, "Sending_File", 12));
+      fprintf(stderr, "Hi there\n");
+      printf("Hi again!\n");
+
+      if(strncmp(messageToReceive, "Sending_File", 12) == 0) {
+        //fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+        fprintf(stderr, "receiving file\n");
+        receiveFile(sockfd, serveraddr, userInput[1], sleepTime, flags);
+        //fcntl(sockfd, F_SETFL, flags);
+      }
+
+      if(strncmp(messageToReceive, "Expecting_File", 14) == 0) {
+
+      }
+      
     }
 
     return 0;
@@ -139,7 +159,9 @@ int sendAndReceieveMessage(char *sendBuf, char *receiveBuf, int sockfd, struct s
     fprintf(stderr, "Sent a message of size: %d\n", numBytesSent);
 
     usleep(sleepTime);
+    setNonBlocking(sockfd);
     numBytesReceived = receivePacket(sockfd, serveraddr, receiveBuf);
+    setBlocking(sockfd);
     if(numBytesReceived > 0) {
       break;
     }
@@ -231,6 +253,7 @@ int sendPacket(int sockfd, struct sockaddr_in serveraddr, char *buf) {
   if(numBytesSent < 0) {
     error("ERROR in sendto");
   }
+  
 
   return numBytesSent;
 }
@@ -240,9 +263,91 @@ int receivePacket(int sockfd, struct sockaddr_in serveraddr, char *buf) {
   bzero(buf, BUFSIZE);
   int numBytesReceieved = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
 
-  if(numBytesReceieved < 0) {
-    error("ERROR in recvfrom");
-  }
+  // if(numBytesReceieved < 0) {
+  //   error("ERROR in recvfrom");
+  // }
+  fprintf(stderr, "Num bytes received %d\n", numBytesReceieved);
 
   return numBytesReceieved;
+}
+
+int receiveFile(int sockfd, struct sockaddr_in serveraddr, char *fileName, unsigned int sleepTime, int flags) {
+  FILE *f = fopen(fileName, "w");
+
+
+  char buf[BUFSIZE], previousMessageReceived[BUFSIZE], messageReceived[BUFSIZE], ack[BUFSIZE];
+  bzero(buf, BUFSIZE);
+  bzero(previousMessageReceived, BUFSIZE);
+  bzero(messageReceived, BUFSIZE);
+  bzero(ack, BUFSIZE);
+
+  strncpy(ack, "1234567890", 10);
+
+  int i = 0;
+  int maxNumPacketsToSend = 10;
+  bool allPacketsReceieved = false;
+  do {
+    usleep(sleepTime);
+    setNonBlocking(sockfd);
+    int numBytesReceived = receivePacket(sockfd, serveraddr, messageReceived);
+    setBlocking(sockfd);
+    fprintf(stderr, "Received Packet %s\n", messageReceived);
+    if(numBytesReceived < 0) {
+      i++;
+      continue;
+    }
+    // if the current buffer is not the same as the previous buffer
+    if(strncmp(messageReceived, previousMessageReceived, BUFSIZE) != 0) {
+      // write to the file
+      fwrite(messageReceived, sizeof(char), indexOfEOFInFile(messageReceived, BUFSIZE), f);
+      fprintf(stderr, "%d\n", indexOfEOFInFile(messageReceived, BUFSIZE));
+      strncpy(previousMessageReceived, messageReceived, BUFSIZE);
+      if(indexOfEOFInFile(messageReceived, BUFSIZE) < BUFSIZE) {
+        // we have received the last packet
+        allPacketsReceieved = true;
+        fprintf(stderr, "Last packet receieved\n");
+      }
+    }
+
+    // send an acknowledgement
+    int numBytesSent = sendPacket(sockfd, serveraddr, ack);
+    i++;
+  } while(!allPacketsReceieved && i < maxNumPacketsToSend);
+
+  fclose(f);
+
+  return 0;  
+}
+
+void setNonBlocking(int sock){
+  int opts;
+
+  opts = fcntl(sock,F_GETFL);
+  if (opts < 0) {
+      perror("fcntl(F_GETFL)");
+      exit(EXIT_FAILURE);
+  }
+  opts = (opts | O_NONBLOCK);
+  if (fcntl(sock,F_SETFL,opts) < 0) {
+      perror("fcntl(F_SETFL)");
+      exit(EXIT_FAILURE);
+  }
+  return;
+}
+
+void setBlocking(int sock) {
+  int opts;
+
+  opts = fcntl(sock,F_GETFL);
+  if (opts < 0) {
+      perror("fcntl(F_GETFL)");
+      exit(EXIT_FAILURE);
+  }
+  //opts = (opts | O_NONBLOCK);
+  opts = opts & (~O_NONBLOCK);
+  if (fcntl(sock,F_SETFL,opts) < 0) {
+      perror("fcntl(F_SETFL)");
+      exit(EXIT_FAILURE);
+  }
+  return;
 }
