@@ -193,10 +193,17 @@ int waitConnectionFromClient(int sockfd, struct sockaddr_in *clientaddr, char *c
   setBlocking(sockfd);
   int numBytesReceived = recvfrom(sockfd, connectionMessage, BUFSIZE, 0, (struct sockaddr*)clientaddr, &clientlen);
   //setNonBlocking(sockfd);
-  fprintf("Num bytes received %d\n", numBytesReceived);
+  //setBlocking(sockfd);
+  fprintf(stderr, "receieved message %s\n", connectionMessage);
+  fprintf(stderr, "Num bytes received %d\n", numBytesReceived);
+  char ack[] = "1234567890";
   if(numBytesReceived < 0) {
     error("ERROR in recvfrom");
     return numBytesReceived;
+  }
+  if(strncmp(connectionMessage, ack , 10) == 0) {
+    fprintf(stderr, "Invalid Ack\n");
+    return -1;
   }
 
   hostp = gethostbyaddr((const char *)&((*clientaddr).sin_addr.s_addr), sizeof((*clientaddr).sin_addr.s_addr), AF_INET);
@@ -207,7 +214,7 @@ int waitConnectionFromClient(int sockfd, struct sockaddr_in *clientaddr, char *c
   if (hostaddrp == NULL){
     error("ERROR on inet_ntoa\n");
     }
-  printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
+  fprintf(stderr, "server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
 
 
   return numBytesReceived;
@@ -305,6 +312,7 @@ int sendFile(int sockfd, struct sockaddr_in *clientaddr, char *fileName, unsigne
     do {
       numBytesSent = sendPacket(sockfd, clientaddr, buf);
       fprintf(stderr, "Sent message: %s\n", buf);
+      fprintf(stderr, "message sent length %d\n", numBytesSent);
       usleep(sleepTime);
       setNonBlocking(sockfd);
       int numBytesReceived = receivePacket(sockfd, clientaddr, messageReceived);
