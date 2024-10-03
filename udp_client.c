@@ -177,13 +177,45 @@ int sendAndReceieveMessage(char *sendBuf, char *receiveBuf, int sockfd, struct s
 
 int indexOfEOFInFile(char *buf, int bufSize) {
 
-  for(int i = 0; i < bufSize; i++) {
-    if(buf[i] == EOF) {
-      return i;
-    }
-  }
+  char firstNum, secondNum, thirdNum, fourthNum;
 
-  return bufSize;
+  fourthNum = buf[bufSize-1];
+  thirdNum = buf[bufSize-2];
+  secondNum = buf[bufSize-3];
+  firstNum = buf[bufSize-4];
+
+  int n_1, n_2, n_3, n_4;
+
+  int finalIndex = 0;
+
+  // if(firstNum >= 48 && firstNum <= 57) {
+  //   finalIndex += 1*(firstNum-48);
+  //   fprintf(stderr, "%c\n", firstNum);
+  // }
+  // else {
+    
+  // }
+
+  // if(secondNum >= 48 && secondNum <= 57) {
+  //   finalIndex += 10*(secondNum-48);
+  //   fprintf(stderr, "%c\n", secondNum);
+  // }
+
+  // if(thirdNum >= 48 && thirdNum <= 57) {
+  //   finalIndex += 100*(thirdNum-48);
+  //   fprintf(stderr, "%c\n", thirdNum);
+  // }
+
+  // if(fourthNum >= 48 && fourthNum <= 57) {
+  //   finalIndex += 1000*(fourthNum-48);
+  //   fprintf(stderr, "%c\n", fourthNum);
+  // }
+
+  char num[4] = {fourthNum, thirdNum, secondNum, firstNum};
+
+  
+
+  return atoi(num);
 }
 
 char *getUserCommand(char *buf) {
@@ -302,7 +334,7 @@ int receiveFile(int sockfd, struct sockaddr_in serveraddr, char *fileName, unsig
       fwrite(messageReceived, sizeof(char), indexOfEOFInFile(messageReceived, BUFSIZE), f);
       fprintf(stderr, "%d\n", indexOfEOFInFile(messageReceived, BUFSIZE));
       strncpy(previousMessageReceived, messageReceived, BUFSIZE);
-      if(indexOfEOFInFile(messageReceived, BUFSIZE) < BUFSIZE) {
+      if(indexOfEOFInFile(messageReceived, BUFSIZE) < BUFSIZE-5) {
         // we have received the last packet
         allPacketsReceieved = true;
         fprintf(stderr, "Last packet receieved\n");

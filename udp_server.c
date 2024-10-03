@@ -35,6 +35,7 @@ char *getFileInputted(char *buf);
 int sendFile(int sockfd, struct sockaddr_in *clientaddr, char *fileName, unsigned int sleepTime, int flags);
 void setBlocking(int sock);
 void setNonBlocking(int sock);
+void appendNZerosToBuf(char *buf, int bufSize, int numZeros);
 
 
 int main(int argc, char **argv) {
@@ -291,18 +292,74 @@ int sendFile(int sockfd, struct sockaddr_in *clientaddr, char *fileName, unsigne
 
   int numBytesSent = 0;
 
-  char buf[BUFSIZE], previousBuf[BUFSIZE], messageReceived[BUFSIZE], expectedAck[BUFSIZE];
-  bzero(buf, BUFSIZE);
-  bzero(previousBuf, BUFSIZE);
+  char buf[BUFSIZE-5], sendBuf[BUFSIZE], messageReceived[BUFSIZE], expectedAck[BUFSIZE];
+  bzero(buf, BUFSIZE-5);
+  bzero(sendBuf, BUFSIZE);
   bzero(messageReceived, BUFSIZE);
   bzero(expectedAck, BUFSIZE);
 
   strncpy(expectedAck, "1234567890", 10);
 
+  char EndOfFileMarker[] = "_01002003004005006007008";
+  //car defaultFilemarker[] = "000000000000000000000000";
+
   do {
-    bzero(buf, BUFSIZE);
-    int numBytesNeededToSendInThisBuf = fread(buf, sizeof(char), BUFSIZE, f);
-    if(numBytesNeededToSendInThisBuf <= 0) {
+    bzero(buf, BUFSIZE-5);
+    bzero(sendBuf, BUFSIZE);
+    // send only 1000 bytes, and leave the last 5 for determining what the last entry in the packet is
+    int numBytesNeededToSendInThisBuf = fread(buf, sizeof(char), BUFSIZE-5, f);
+    // if(numBytesNeededToSendInThisBuf <= 0) {
+    //   // all bytes must have been sent -- break;
+    //   fprintf(stderr, "All Bytes have been sent\n");
+    //   break;
+    // }
+
+    fprintf(stderr, "Original buffer needed to send %s\n", buf);
+
+    strcat(sendBuf, buf);
+    if(numBytesNeededToSendInThisBuf >= 1000) {
+      char numBytes[4];
+      sprintf(numBytes, "%d", numBytesNeededToSendInThisBuf);
+      fprintf(stderr, "number of bytes to send: %s\n", numBytes);
+      fprintf(stderr, "number of bytes to send in buf: %d\n", numBytesNeededToSendInThisBuf);
+      //strcat()
+      //strcat(sendBuf, BUFSIZE - numBytesNeededToSendInThisBuf - 1)
+      //appendNZerosToBuf(sendBuf, BUFSIZE, BUFSIZE-numBytesNeededToSendInThisBuf-1);
+      sendBuf[BUFSIZE-1] = numBytes[0];
+      sendBuf[BUFSIZE-2] = numBytes[1];
+      sendBuf[BUFSIZE-3] = numBytes[2];
+      sendBuf[BUFSIZE-4] = numBytes[3];
+    }
+
+    else if(numBytesNeededToSendInThisBuf >= 100) {
+      char numBytes[3];
+      sprintf(numBytes, "%d", numBytesNeededToSendInThisBuf);
+      fprintf(stderr, "number of bytes to send: %s\n", numBytes);
+      fprintf(stderr, "number of bytes to send in buf: %d\n", numBytesNeededToSendInThisBuf);
+      //appendNZerosToBuf(sendBuf, BUFSIZE, BUFSIZE-numBytesNeededToSendInThisBuf-2);
+      //strcat(sendBuf, numBytes);
+      sendBuf[BUFSIZE-1] = numBytes[0];
+      sendBuf[BUFSIZE-2] = numBytes[1];
+      sendBuf[BUFSIZE-3] = numBytes[2];
+    }
+
+    else if(numBytesNeededToSendInThisBuf >= 10) {
+      char numBytes[2];
+      sprintf(numBytes, "%d", numBytesNeededToSendInThisBuf);
+      fprintf(stderr, "number of bytes to send: %s\n", numBytes);
+      fprintf(stderr, "number of bytes to send in buf: %d\n", numBytesNeededToSendInThisBuf);
+      //appendNZerosToBuf(sendBuf, BUFSIZE, BUFSIZE-numBytesNeededToSendInThisBuf-3);
+      //strcat(sendBuf, numBytes);
+      sendBuf[BUFSIZE-1] = numBytes[0];
+      sendBuf[BUFSIZE-2] = numBytes[1];
+    }
+    else if(numBytesNeededToSendInThisBuf >= 1) {
+      char numBytes[1];
+      //appendNZerosToBuf(sendBuf, BUFSIZE, BUFSIZE-numBytesNeededToSendInThisBuf-4);
+      //strcat(sendBuf, numBytes);
+      sendBuf[BUFSIZE-1] = numBytes[0];
+    }
+    else {
       // all bytes must have been sent -- break;
       fprintf(stderr, "All Bytes have been sent\n");
       break;
@@ -310,8 +367,8 @@ int sendFile(int sockfd, struct sockaddr_in *clientaddr, char *fileName, unsigne
     
     int i = 0;
     do {
-      numBytesSent = sendPacket(sockfd, clientaddr, buf);
-      fprintf(stderr, "Sent message: %s\n", buf);
+      numBytesSent = sendPacket(sockfd, clientaddr, sendBuf);
+      fprintf(stderr, "Sent message: %s\n", sendBuf);
       fprintf(stderr, "message sent length %d\n", numBytesSent);
       usleep(sleepTime);
       setNonBlocking(sockfd);
@@ -380,4 +437,11 @@ void setBlocking(int sock) {
       exit(EXIT_FAILURE);
   }
   return;
+}
+
+void appendNZerosToBuf(char *buf, int bufSize, int numZeros) {
+  for(int i = 0; i < numZeros; i++) {
+    char numZero[] = "0";
+    strncat(buf, &numZero - 48, 1);
+  }
 }
