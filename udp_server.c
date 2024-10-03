@@ -382,10 +382,10 @@ int sendFile(int sockfd, struct sockaddr_in *clientaddr, char *fileName, unsigne
         break;
       }
       i++;
-    } while(i < 3);
+    } while(i < 100);
     
 
-    if(i == 3) {
+    if(i == 100) {
       fprintf(stderr, "Error packet timeout\n");
       break;
     }

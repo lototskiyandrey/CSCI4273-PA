@@ -313,10 +313,12 @@ int receiveFile(int sockfd, struct sockaddr_in serveraddr, char *fileName, unsig
   bzero(messageReceived, BUFSIZE);
   bzero(ack, BUFSIZE);
 
+  int currentPacketNum = 0;
+
   strncpy(ack, "1234567890", 10);
 
   int i = 0;
-  int maxNumPacketsToSend = 10;
+  int maxNumPacketsToSend = 1000;
   bool allPacketsReceieved = false;
   do {
     usleep(sleepTime);
@@ -345,6 +347,8 @@ int receiveFile(int sockfd, struct sockaddr_in serveraddr, char *fileName, unsig
     int numBytesSent = sendPacket(sockfd, serveraddr, ack);
     i++;
   } while(!allPacketsReceieved && i < maxNumPacketsToSend);
+
+  fprintf(stderr, "Packet num: %d\n", i);
 
   fclose(f);
 
