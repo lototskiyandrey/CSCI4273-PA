@@ -32,15 +32,13 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    ssize_t n = fread(buf, sizeof(char), bufsize, f);
-
-    //buf[bufsize-1] = '\0';
-
-    fprintf(stderr, "Number of bytes read: %ld\n", n);
-
-    printf("Buffer is: %s\n", buf);
-
-    printCharBufInInts(buf, bufsize, "buf");
+    ssize_t bytesRead;
+    while((bytesRead = fread(buf, sizeof(char), bufsize-5, f)) > 0)
+    {
+        fprintf(stderr, "Number of bytes read: %ld\n", bytesRead);
+        printf("Buffer is: %s\n", buf);
+        printCharBufInInts(buf, bufsize, "buf");
+    }
 
     fclose(f);
 
