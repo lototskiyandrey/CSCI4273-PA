@@ -8,6 +8,8 @@
 
 void printCharBufInInts(char *buf, int size, char *bufName);
 int zeroBuf(char *buf, int size);
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
+int numBytesToReadInBuf(char *buf, int size);
 
 int main(int argc, char **argv)
 {
@@ -51,9 +53,14 @@ int main(int argc, char **argv)
     while((bytesRead = fread(buf, sizeof(char), bufsize-5, f1)) > 0)
     {
         fprintf(stderr, "Number of bytes read: %ld\n", bytesRead);
+        //printf("Buffer is: %s\n", buf);
+        //printCharBufInInts(buf, bufsize, "buf");
+        numBytesReadToStringInBuf(buf, bufsize, (int)bytesRead);
         printf("Buffer is: %s\n", buf);
+        int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
         printCharBufInInts(buf, bufsize, "buf");
-        (void)fwrite(buf, sizeof(char), (int)bytesRead, f2);
+        printf("numBytes in buffer: %d\n", numBytesInBuf);
+        (void)fwrite(buf, sizeof(char), numBytesInBuf, f2);
         zeroBuf(buf, bufsize);
     }
 
@@ -61,6 +68,33 @@ int main(int argc, char **argv)
     fclose(f2);
 
     return 0;
+}
+
+int numBytesToReadInBuf(char *buf, int size)
+{
+    char numAsString[5];
+
+    numAsString[0] = buf[(size-1) - 4];
+    numAsString[1] = buf[(size-1) - 3];
+    numAsString[2] = buf[(size-1) - 2];
+    numAsString[3] = buf[(size-1) - 1];
+    numAsString[4] = buf[(size-1) - 0];   
+
+    return atoi(numAsString);
+}
+
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert)
+{
+    char bytesToInsert[5];
+    zeroBuf(bytesToInsert, 5);
+    sprintf(bytesToInsert, "%d", numBytesToInsert);
+    //strcat(buf, bytesToInsert);
+
+    buf[(size-1)-4] = bytesToInsert[0];
+    buf[(size-1)-3] = bytesToInsert[1];
+    buf[(size-1)-2] = bytesToInsert[2];
+    buf[(size-1)-1] = bytesToInsert[3];
+    buf[(size-1)-0] = bytesToInsert[4];
 }
 
 void printCharBufInInts(char *buf, int size, char *bufName)
