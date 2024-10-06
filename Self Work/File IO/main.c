@@ -19,28 +19,46 @@ int main(int argc, char **argv)
     }
 
     //char buf[bufsize];
-    FILE *f;
+    FILE *f1, *f2;
     
-    f = fopen(argv[1], "r");
+    f1 = fopen(argv[1], "r"); 
 
     char buf[bufsize];
 
     zeroBuf(buf, bufsize);
 
-    if(f == NULL)
+    strcpy(buf, "Copy of ");
+    strcat(buf, argv[1]);
+
+    f2 = fopen(buf, "w");
+
+    if(f1 == NULL)
     {
+        fprintf(stderr, "read opened file is null\n");
         exit(1);
     }
 
+    if(f2 == NULL) 
+    {   
+        fprintf(stderr, "written opened file is null\n");
+        fclose(f1);
+        exit(1);
+    }
+
+    zeroBuf(buf, bufsize);
+
     ssize_t bytesRead;
-    while((bytesRead = fread(buf, sizeof(char), bufsize-5, f)) > 0)
+    while((bytesRead = fread(buf, sizeof(char), bufsize-5, f1)) > 0)
     {
         fprintf(stderr, "Number of bytes read: %ld\n", bytesRead);
         printf("Buffer is: %s\n", buf);
         printCharBufInInts(buf, bufsize, "buf");
+        (void)fwrite(buf, sizeof(char), (int)bytesRead, f2);
+        zeroBuf(buf, bufsize);
     }
 
-    fclose(f);
+    fclose(f1);
+    fclose(f2);
 
     return 0;
 }
