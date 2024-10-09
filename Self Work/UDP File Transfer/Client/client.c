@@ -8,6 +8,8 @@
 #include <arpa/inet.h>
 
 #define bufsize 1024
+#define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
+
 
 int zeroBuf(char *buf, int size);
 void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
@@ -100,6 +102,11 @@ int main(int argc, char **argv)
         }
         
         fclose(f);
+
+        zeroBuf(buf, bufsize);
+        strcpy(buf, EOFPACKET);
+        numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET));
+        numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
 
         // Send one more packet saying that file transfer has been completed!
         

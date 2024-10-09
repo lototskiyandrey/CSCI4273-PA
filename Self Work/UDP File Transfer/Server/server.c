@@ -9,10 +9,12 @@
 #include <sys/time.h>
 
 #define bufsize 1024
+#define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
 
 int zeroBuf(char *buf, int size);
 int numBytesToReadInBuf(char *buf, int size);
 void printCharBufInInts(char *buf, int size, char *bufName);
+int isEOFPacket(char *buf, int size);
 
 int main(int argc, char **argv)
 {
@@ -35,7 +37,7 @@ int main(int argc, char **argv)
     me.sin_addr.s_addr = htonl(INADDR_ANY);
 
 
-    bind(sckt, (struct sockaddr *)&me, sizeof(me));
+    (void)bind(sckt, (struct sockaddr *)&me, sizeof(me));
 
 
     char buf[bufsize];
@@ -82,9 +84,10 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Number of bytes received: %d\n", numBytesReceived);
                 int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
                 fprintf(stderr, "Number of bytes in the buffer: %d\n", numBytesInBuf);
-                if()
+                if(isEOFPacket(buf, bufsize))
                 {
                     fprintf(stderr, "All Bytes in File Read\n");
+                    break;
                 }
                 (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
                 printCharBufInInts(buf, bufsize, "buf");
@@ -111,6 +114,19 @@ int main(int argc, char **argv)
 
 
 
+    return 0;
+}
+
+int isEOFPacket(char *buf, int size)
+{
+    
+    //int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
+    (void)size;
+    if(strncmp(buf, EOFPACKET, strlen(EOFPACKET)) == 0)
+    {
+        return 1;
+    }
+    
     return 0;
 }
 
