@@ -100,6 +100,8 @@ int main(int argc, char **argv)
         }
         
         fclose(f);
+
+        // Send one more packet saying that file transfer has been completed!
         
         // Old Code
         // sendto(sckt, buf, strlen(buf), 0, (struct sockaddr *)&serveraddress, serverlen);

@@ -82,16 +82,20 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Number of bytes received: %d\n", numBytesReceived);
                 int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
                 fprintf(stderr, "Number of bytes in the buffer: %d\n", numBytesInBuf);
+                if()
+                {
+                    fprintf(stderr, "All Bytes in File Read\n");
+                }
                 (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
                 printCharBufInInts(buf, bufsize, "buf");
                 zeroBuf(buf, bufsize);
                 fprintf(stderr,"Reached the end of the loop\n");
-                if(numBytesInBuf < bufsize - 5)
-                {
-                    // This must be the last packet
-                    fprintf(stderr, "Last Packet received!\n");
-                    break;
-                }
+                // if(numBytesInBuf < bufsize - 5)
+                // {
+                //     // This must be the last packet
+                //     fprintf(stderr, "Last Packet received!\n");
+                //     break;
+                // }
             }
             else 
             {
