@@ -6,10 +6,13 @@
 #include <netinet/ip.h>
 #include <netdb.h> 
 #include <arpa/inet.h>
+#include <fcntl.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define bufsize 1024
 #define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
-
+#define ACK "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
 
 int zeroBuf(char *buf, int size);
 void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
@@ -54,6 +57,14 @@ int main(int argc, char **argv)
     // int numBytesSent;
     char fileName[128];
     char command[10];
+
+    int flags = fcntl(sckt, F_GETFL);
+    fd_set readfds;
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 200;
+    FD_ZERO(&readfds);
+    FD_SET(sckt, &readfds);
     
     while(1)
     {   
@@ -86,27 +97,63 @@ int main(int argc, char **argv)
             continue;
         }
 
-        // no reliable protcol checking here yet!
+        // Check for acknowledgement here!
+        //
+        int numBytesReceived;
+        while(1)
+        {
+            int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
+            if(rv == 1)
+            {
+                numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+                if(numBytesReceived < 0)
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                // Nothing in socket
+            }
+        }
+        //
+        //
+        //
+
+        
+
         fprintf(stdout, "Sending the file to the server\n");
 
         zeroBuf(buf, bufsize);
         ssize_t bytesReadInFile;
-        while((bytesReadInFile = fread(buf, sizeof(char), bufsize-5, f)) > 0)
+        while(1)
         {
-            numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile);
-            int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
-            fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
-            (void)numBytesSent;
-            printCharBufInInts(buf, bufsize, "buf");
-            zeroBuf(buf, bufsize);
+            bytesReadInFile = fread(buf, sizeof(char), bufsize-5, f);
+            if(bytesReadInFile <= 0)
+            {
+                zeroBuf(buf, bufsize);
+                strcpy(buf, EOFPACKET);
+                numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET));
+                numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+            }
+            else
+            {
+                numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile);
+                int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+                fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
+                (void)numBytesSent;
+                printCharBufInInts(buf, bufsize, "buf");
+                zeroBuf(buf, bufsize);
+            }
+            
+            // Check for acknowledgement here!
+            //
+            
+
         }
         
         fclose(f);
 
-        zeroBuf(buf, bufsize);
-        strcpy(buf, EOFPACKET);
-        numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET));
-        numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
 
         // Send one more packet saying that file transfer has been completed!
         

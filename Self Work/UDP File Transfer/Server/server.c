@@ -10,10 +10,12 @@
 
 #define bufsize 1024
 #define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
+#define ACK "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
 
 int zeroBuf(char *buf, int size);
 int numBytesToReadInBuf(char *buf, int size);
 void printCharBufInInts(char *buf, int size, char *bufName);
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
 int isEOFPacket(char *buf, int size);
 
 int main(int argc, char **argv)
@@ -40,7 +42,7 @@ int main(int argc, char **argv)
     (void)bind(sckt, (struct sockaddr *)&me, sizeof(me));
 
 
-    char buf[bufsize];
+    char buf[bufsize], prevBuf[bufsize];
     unsigned int clientlen = sizeof(client);
     char fileName[128];
     char command[10];
@@ -71,6 +73,7 @@ int main(int argc, char **argv)
         tv.tv_usec = 200;
         FD_ZERO(&readfds);
         FD_SET(sckt, &readfds);
+        zeroBuf(prevBuf, bufsize);
         while(1)
         {   
             int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
@@ -87,18 +90,34 @@ int main(int argc, char **argv)
                 if(isEOFPacket(buf, bufsize))
                 {
                     fprintf(stderr, "All Bytes in File Read\n");
+                    strcpy(buf, ACK);
+                    numBytesReadToStringInBuf(buf, bufsize, strlen(ACK));
+                    (void)sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
                     break;
                 }
-                (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
-                printCharBufInInts(buf, bufsize, "buf");
+                if(strcmp(buf, prevBuf) != 0)
+                {
+                    (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
+                    zeroBuf(prevBuf, bufsize);
+                    strcpy(prevBuf, buf);
+                }
+                // printCharBufInInts(buf, bufsize, "buf");
                 zeroBuf(buf, bufsize);
-                fprintf(stderr,"Reached the end of the loop\n");
+                // fprintf(stderr,"Reached the end of the loop\n");
                 // if(numBytesInBuf < bufsize - 5)
                 // {
                 //     // This must be the last packet
                 //     fprintf(stderr, "Last Packet received!\n");
                 //     break;
                 // }
+
+                // Send an Ack Here
+                //
+                strcpy(buf, ACK);
+                numBytesReadToStringInBuf(buf, bufsize, strlen(ACK));
+                (void)sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
+                //
+                //
             }
             else 
             {
@@ -168,4 +187,20 @@ int zeroBuf(char *buf, int size)
     memset(buf, 0, size*sizeof(char));
 
     return size;
+}
+
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert)
+{
+    char bytesToInsert[5];
+    zeroBuf(bytesToInsert, 5);
+    sprintf(bytesToInsert, "%d", numBytesToInsert);
+    //strcat(buf, bytesToInsert);
+
+    // fprintf(stderr, "%c %c %c %c %c", bytesToInsert[0], bytesToInsert[1], bytesToInsert[2], bytesToInsert[3], bytesToInsert[4]);
+
+    buf[(size-1)-4] = bytesToInsert[0];
+    buf[(size-1)-3] = bytesToInsert[1];
+    buf[(size-1)-2] = bytesToInsert[2];
+    buf[(size-1)-1] = bytesToInsert[3];
+    buf[(size-1)-0] = bytesToInsert[4];
 }
