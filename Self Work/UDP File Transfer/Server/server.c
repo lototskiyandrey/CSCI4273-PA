@@ -5,6 +5,8 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <time.h>
+#include <sys/time.h>
 
 #define bufsize 1024
 
@@ -45,7 +47,7 @@ int main(int argc, char **argv)
     {   
         zeroBuf(buf, bufsize);
         printf("UDP server: waiting for datagram\n");
-        //fcntl(sckt, flags & ~O_NONBLOCK);
+        fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
         int numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&client, &clientlen);
         printf("Received datagram from [host:port] = [%s:%d]\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
         // printf("Num bytes received: %d\nReceived Buffer-->\n%s\n", numBytesreceived, buf);
@@ -59,21 +61,42 @@ int main(int argc, char **argv)
 
         FILE *f = fopen(fileName, "w");
 
+        fd_set readfds;
+        struct timeval tv;
         zeroBuf(buf, bufsize);
-        fcntl(sckt, flags | O_NONBLOCK);
+        fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+        tv.tv_sec = 0;
+        tv.tv_usec = 200;
+        FD_ZERO(&readfds);
+        FD_SET(sckt, &readfds);
         while(1)
         {   
-            numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&client, &clientlen);
-            if(numBytesReceived < 0) {
-                break;
+            int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
+            if(rv == 1)
+            {
+                numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&client, &clientlen);
+                if(numBytesReceived < 0) {
+                    //break;
+                    continue;
+                }
+                fprintf(stderr, "Number of bytes received: %d\n", numBytesReceived);
+                int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
+                fprintf(stderr, "Number of bytes in the buffer: %d\n", numBytesInBuf);
+                (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
+                printCharBufInInts(buf, bufsize, "buf");
+                zeroBuf(buf, bufsize);
+                fprintf(stderr,"Reached the end of the loop\n");
+                if(numBytesInBuf < bufsize - 5)
+                {
+                    // This must be the last packet
+                    fprintf(stderr, "Last Packet received!\n");
+                    break;
+                }
             }
-            fprintf(stderr, "Number of bytes received: %d\n", numBytesReceived);
-            int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
-            fprintf(stderr, "Number of bytes in the buffer: %d\n", numBytesInBuf);
-            (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
-            printCharBufInInts(buf, bufsize, "buf");
-            zeroBuf(buf, bufsize);
-            fprintf(stderr,"Reached the end of the loop\n");
+            else 
+            {
+                // fprintf(stderr, "Nothing in socket right now!\n");
+            }
         }
 
         fprintf(stderr,"Closing file\n");
