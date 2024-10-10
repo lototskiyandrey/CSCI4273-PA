@@ -19,6 +19,8 @@ void printCharBufInInts(char *buf, int size, char *bufName);
 void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
 int isEOFPacket(char *buf, int size);
 
+// Todo: Add a packet number to each packet to test if packets are the same.
+
 int main(int argc, char **argv)
 {
     

@@ -19,6 +19,8 @@ void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
 void printCharBufInInts(char *buf, int size, char *bufName);
 int numBytesToReadInBuf(char *buf, int size);
 
+// Todo: Add a packet number to each packet to test if packets are the same.
+
 int main(int argc, char **argv)
 {
     
