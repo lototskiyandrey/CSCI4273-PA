@@ -17,6 +17,7 @@
 int zeroBuf(char *buf, int size);
 void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
 void printCharBufInInts(char *buf, int size, char *bufName);
+int numBytesToReadInBuf(char *buf, int size);
 
 int main(int argc, char **argv)
 {
@@ -61,13 +62,11 @@ int main(int argc, char **argv)
     int flags = fcntl(sckt, F_GETFL);
     fd_set readfds;
     struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 200;
-    FD_ZERO(&readfds);
-    FD_SET(sckt, &readfds);
+    
     
     while(1)
     {   
+        fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
         zeroBuf(buf, bufsize);
         fprintf(stdout, "Enter a valid command (put FILENAME): ");
         fgets(buf, bufsize, stdin);
@@ -99,28 +98,38 @@ int main(int argc, char **argv)
 
         // Check for acknowledgement here!
         //
-        int numBytesReceived;
-        while(1)
-        {
-            int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
-            if(rv == 1)
-            {
-                numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
-                if(numBytesReceived < 0)
-                {
-                    continue;
-                }
-            }
-            else
-            {
-                // Nothing in socket
-            }
-        }
+        // fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+        // int numBytesReceived;
+        // while(1)
+        // {
+        //     int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
+        //     if(rv == 1)
+        //     {   
+        //         zeroBuf(buf, bufsize);
+        //         numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+        //         if(numBytesReceived < 0)
+        //         {
+        //             continue;
+        //         }
+
+        //         if(strncmp(buf, ACK, strlen(ACK)) == 0)
+        //         {
+        //             // ack received
+        //             fprintf(stderr, "ACK Received.\n");
+        //             break;
+        //         }
+
+        //     }
+        //     else
+        //     {
+        //         // Nothing in socket
+        //     }
+        // }
         //
         //
         //
 
-        
+        fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
 
         fprintf(stdout, "Sending the file to the server\n");
 
@@ -135,6 +144,7 @@ int main(int argc, char **argv)
                 strcpy(buf, EOFPACKET);
                 numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET));
                 numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+                break;
             }
             else
             {
@@ -148,6 +158,43 @@ int main(int argc, char **argv)
             
             // Check for acknowledgement here!
             //
+
+            fprintf(stderr, "Waiting for Acknowledgement.\n");
+            fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+            int numBytesReceived;
+            while(1)
+            {
+                tv.tv_sec = 0;
+                tv.tv_usec = 200;
+                FD_ZERO(&readfds);
+                FD_SET(sckt, &readfds);
+                fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+                int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
+                if(rv == 1)
+                {   
+                    zeroBuf(buf, bufsize);
+                    numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+                    if(numBytesReceived < 0)
+                    {
+                        continue;
+                    }
+
+                    fprintf(stderr, "Received buf: %s\n", buf);
+
+                    if(strncmp(buf, ACK, strlen(ACK)) == 0)
+                    {
+                        // ack received
+                        fprintf(stderr, "ACK Received.\n");
+                        break;
+                    }
+
+                }
+                else
+                {
+                    // Nothing in socket
+                    // fprintf(stderr, "Nothing in Socket right now!\n");
+                }
+            }
             
 
         }
@@ -209,4 +256,19 @@ void printCharBufInInts(char *buf, int size, char *bufName)
         fprintf(stderr, "%d", buf[i]);
     }
     fprintf(stderr, "\n");
+}
+
+int numBytesToReadInBuf(char *buf, int size)
+{
+    char numAsString[5];
+
+    numAsString[0] = buf[(size-1) - 4];
+    numAsString[1] = buf[(size-1) - 3];
+    numAsString[2] = buf[(size-1) - 2];
+    numAsString[3] = buf[(size-1) - 1];
+    numAsString[4] = buf[(size-1) - 0];   
+
+    // fprintf(stderr, "%d %d %d %d %d", numAsString[0], numAsString[1], numAsString[2], numAsString[3], numAsString[4]);
+
+    return atoi(numAsString);
 }

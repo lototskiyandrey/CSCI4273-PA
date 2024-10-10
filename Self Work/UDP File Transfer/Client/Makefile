@@ -1,4 +1,4 @@
 make:
-	-gcc client.c -o client -Wall -Wextra -Werror
+	-gcc client.c -g -o client -Wall -Wextra -Werror
 clean:
 	rm client

@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #define bufsize 1024
 #define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
@@ -58,6 +59,10 @@ int main(int argc, char **argv)
         // printf("Sending reply\n");
         // sendto(sckt, buf, numBytesreceived, 0, (struct sockaddr *)&client, clientlen);
 
+        // Send an ack that we have received the message
+
+        fprintf(stderr, "Received Message: %s\n", buf);
+
         zeroBuf(command, 10);
         zeroBuf(fileName, 128);
 
@@ -65,20 +70,23 @@ int main(int argc, char **argv)
 
         FILE *f = fopen(fileName, "w");
 
-        fd_set readfds;
         struct timeval tv;
         zeroBuf(buf, bufsize);
         fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-        tv.tv_sec = 0;
-        tv.tv_usec = 200;
-        FD_ZERO(&readfds);
-        FD_SET(sckt, &readfds);
-        zeroBuf(prevBuf, bufsize);
+        
         while(1)
         {   
+            fd_set readfds;
+            tv.tv_sec = 0;
+            tv.tv_usec = 200;
+            FD_ZERO(&readfds);
+            FD_SET(sckt, &readfds);
+            zeroBuf(prevBuf, bufsize);
+            fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
             int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
             if(rv == 1)
             {
+                fprintf(stderr, "Attempting to Receive\n");
                 numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&client, &clientlen);
                 if(numBytesReceived < 0) {
                     //break;
@@ -97,6 +105,7 @@ int main(int argc, char **argv)
                 }
                 if(strcmp(buf, prevBuf) != 0)
                 {
+                    fprintf(stderr, "New buf received is unique.\n");
                     (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
                     zeroBuf(prevBuf, bufsize);
                     strcpy(prevBuf, buf);
@@ -113,11 +122,16 @@ int main(int argc, char **argv)
 
                 // Send an Ack Here
                 //
+                usleep(200);
+                fprintf(stderr, "Sending Acknowledgement.\n");
                 strcpy(buf, ACK);
                 numBytesReadToStringInBuf(buf, bufsize, strlen(ACK));
-                (void)sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
+                fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
+                int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
+                fprintf(stderr, "Acknowledgement Sent. %d\n", numBytesSent);
                 //
                 //
+                (void)numBytesSent;
             }
             else 
             {

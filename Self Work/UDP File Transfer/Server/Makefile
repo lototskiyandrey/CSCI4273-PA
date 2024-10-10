@@ -1,5 +1,5 @@
 make:
-	-gcc server.c -o server -Wall -Wextra -Werror
+	-gcc server.c -g -o server -Wall -Wextra -Werror
 
 clean:
 	rm server
