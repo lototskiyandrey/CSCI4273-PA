@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 
                 // Send an Ack Here
                 //
-                usleep(200);
+                // usleep(200);
                 fprintf(stderr, "Sending Acknowledgement.\n");
                 strcpy(buf, ACK);
                 numBytesReadToStringInBuf(buf, bufsize, strlen(ACK));

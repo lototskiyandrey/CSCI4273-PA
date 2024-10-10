@@ -146,7 +146,10 @@ int main(int argc, char **argv)
                 numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
                 break;
             }
-            else
+            
+            int numSends = 0;
+            int hasSent = 0;
+            while(numSends < 3 && hasSent == 0)
             {
                 numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile);
                 int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
@@ -154,46 +157,59 @@ int main(int argc, char **argv)
                 (void)numBytesSent;
                 printCharBufInInts(buf, bufsize, "buf");
                 zeroBuf(buf, bufsize);
-            }
-            
-            // Check for acknowledgement here!
-            //
+                
+                
+                // Check for acknowledgement here!
+                //
 
-            fprintf(stderr, "Waiting for Acknowledgement.\n");
-            fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-            int numBytesReceived;
-            while(1)
-            {
-                tv.tv_sec = 0;
-                tv.tv_usec = 200;
-                FD_ZERO(&readfds);
-                FD_SET(sckt, &readfds);
+                fprintf(stderr, "Waiting for Acknowledgement.\n");
                 fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-                int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
-                if(rv == 1)
-                {   
-                    zeroBuf(buf, bufsize);
-                    numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
-                    if(numBytesReceived < 0)
-                    {
-                        continue;
-                    }
-
-                    fprintf(stderr, "Received buf: %s\n", buf);
-
-                    if(strncmp(buf, ACK, strlen(ACK)) == 0)
-                    {
-                        // ack received
-                        fprintf(stderr, "ACK Received.\n");
-                        break;
-                    }
-
-                }
-                else
+                int numBytesReceived;
+                int numListens = 0;
+                while(numListens < 10)
                 {
-                    // Nothing in socket
-                    // fprintf(stderr, "Nothing in Socket right now!\n");
+                    tv.tv_sec = 0;
+                    tv.tv_usec = 200;
+                    FD_ZERO(&readfds);
+                    FD_SET(sckt, &readfds);
+                    fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+                    int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
+                    if(rv == 1)
+                    {   
+                        zeroBuf(buf, bufsize);
+                        numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+                        if(numBytesReceived < 0)
+                        {
+                            continue;
+                        }
+
+                        fprintf(stderr, "Received buf: %s\n", buf);
+
+                        if(strncmp(buf, ACK, strlen(ACK)) == 0)
+                        {
+                            // ack received
+                            fprintf(stderr, "ACK Received.\n");
+                            hasSent = 1;
+                            break;
+                        }
+
+                    }
+                    else
+                    {
+                        // Nothing in socket
+                        // fprintf(stderr, "Nothing in Socket right now!\n");
+                    }
+                    numListens++;
                 }
+
+                numSends++;
+            
+            }
+
+            if(numSends >= 3)
+            {
+                fprintf(stderr, "Connection to server must have been lost.\n");
+                return 1;
             }
             
 
