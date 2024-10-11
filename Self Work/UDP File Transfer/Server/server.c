@@ -16,8 +16,9 @@
 int zeroBuf(char *buf, int size);
 int numBytesToReadInBuf(char *buf, int size);
 void printCharBufInInts(char *buf, int size, char *bufName);
-void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert, int packetNum);
 int isEOFPacket(char *buf, int size);
+int getBufPacketNum(char *buf, int size);
 
 // Todo: Add a packet number to each packet to test if packets are the same.
 
@@ -75,7 +76,7 @@ int main(int argc, char **argv)
         struct timeval tv;
         zeroBuf(buf, bufsize);
         fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-        
+        int packetNum;
         while(1)
         {   
             fd_set readfds;
@@ -97,15 +98,16 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Number of bytes received: %d\n", numBytesReceived);
                 int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
                 fprintf(stderr, "Number of bytes in the buffer: %d\n", numBytesInBuf);
+                packetNum = getBufPacketNum(buf, bufsize);
                 if(isEOFPacket(buf, bufsize))
                 {
                     fprintf(stderr, "All Bytes in File Read\n");
                     strcpy(buf, ACK);
-                    numBytesReadToStringInBuf(buf, bufsize, strlen(ACK));
+                    numBytesReadToStringInBuf(buf, bufsize, strlen(ACK), packetNum);
                     (void)sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
                     break;
                 }
-                if(strcmp(buf, prevBuf) != 0)
+                if(packetNum != getBufPacketNum(prevBuf, bufsize))
                 {
                     fprintf(stderr, "New buf received is unique.\n");
                     (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
@@ -127,7 +129,7 @@ int main(int argc, char **argv)
                 // usleep(200);
                 fprintf(stderr, "Sending Acknowledgement.\n");
                 strcpy(buf, ACK);
-                numBytesReadToStringInBuf(buf, bufsize, strlen(ACK));
+                numBytesReadToStringInBuf(buf, bufsize, strlen(ACK), packetNum);
                 fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
                 int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
                 fprintf(stderr, "Acknowledgement Sent. %d\n", numBytesSent);
@@ -187,7 +189,7 @@ int numBytesToReadInBuf(char *buf, int size)
     numAsString[1] = buf[(size-1) - 3];
     numAsString[2] = buf[(size-1) - 2];
     numAsString[3] = buf[(size-1) - 1];
-    numAsString[4] = buf[(size-1) - 0];   
+    // numAsString[4] = buf[(size-1) - 0];   
 
     // fprintf(stderr, "%d %d %d %d %d", numAsString[0], numAsString[1], numAsString[2], numAsString[3], numAsString[4]);
 
@@ -205,7 +207,7 @@ int zeroBuf(char *buf, int size)
     return size;
 }
 
-void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert)
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert, int packetNum)
 {
     char bytesToInsert[5];
     zeroBuf(bytesToInsert, 5);
@@ -218,5 +220,10 @@ void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert)
     buf[(size-1)-3] = bytesToInsert[1];
     buf[(size-1)-2] = bytesToInsert[2];
     buf[(size-1)-1] = bytesToInsert[3];
-    buf[(size-1)-0] = bytesToInsert[4];
+    buf[(size-1)-0] = (packetNum % 10) + 1;//bytesToInsert[4];
+}
+
+int getBufPacketNum(char *buf, int size)
+{
+    return buf[(size-1)-0];
 }

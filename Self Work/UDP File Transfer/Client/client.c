@@ -15,9 +15,11 @@
 #define ACK "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
 
 int zeroBuf(char *buf, int size);
-void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
+// void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert, int packetNum);
 void printCharBufInInts(char *buf, int size, char *bufName);
 int numBytesToReadInBuf(char *buf, int size);
+int bufPacketNum(char *buf, int size);
 
 // Todo: Add a packet number to each packet to test if packets are the same.
 
@@ -135,6 +137,8 @@ int main(int argc, char **argv)
 
         fprintf(stdout, "Sending the file to the server\n");
 
+        int packetNum = 0;
+
         zeroBuf(buf, bufsize);
         ssize_t bytesReadInFile;
         while(1)
@@ -144,7 +148,7 @@ int main(int argc, char **argv)
             {
                 zeroBuf(buf, bufsize);
                 strcpy(buf, EOFPACKET);
-                numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET));
+                numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET), 0);
                 numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
                 break;
             }
@@ -153,7 +157,7 @@ int main(int argc, char **argv)
             int hasSent = 0;
             while(numSends < 3 && hasSent == 0)
             {
-                numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile);
+                numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile, packetNum);
                 int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
                 fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
                 (void)numBytesSent;
@@ -214,10 +218,12 @@ int main(int argc, char **argv)
                 return 1;
             }
             
+            packetNum++;
 
         }
         
         fclose(f);
+
 
 
         // Send one more packet saying that file transfer has been completed!
@@ -234,7 +240,7 @@ int main(int argc, char **argv)
 }
 
 
-void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert)
+void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert, int packetNum)
 {
     char bytesToInsert[5];
     zeroBuf(bytesToInsert, 5);
@@ -247,7 +253,8 @@ void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert)
     buf[(size-1)-3] = bytesToInsert[1];
     buf[(size-1)-2] = bytesToInsert[2];
     buf[(size-1)-1] = bytesToInsert[3];
-    buf[(size-1)-0] = bytesToInsert[4];
+    // buf[(size-1)-0] = bytesToInsert[4];
+    buf[(size-1)-0] = (packetNum % 10) + 1;
 }
 
 
@@ -284,9 +291,14 @@ int numBytesToReadInBuf(char *buf, int size)
     numAsString[1] = buf[(size-1) - 3];
     numAsString[2] = buf[(size-1) - 2];
     numAsString[3] = buf[(size-1) - 1];
-    numAsString[4] = buf[(size-1) - 0];   
+    // numAsString[4] = buf[(size-1) - 0];   
 
     // fprintf(stderr, "%d %d %d %d %d", numAsString[0], numAsString[1], numAsString[2], numAsString[3], numAsString[4]);
 
     return atoi(numAsString);
+}
+
+int bufPacketNum(char *buf, int size)
+{
+    return buf[(size-1)-0];
 }
