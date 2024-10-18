@@ -149,15 +149,19 @@ int main(int argc, char **argv)
                             {
                                 continue;
                             }
-                            fprintf(stderr, "Received buf: %s\n", buf);
+                            //fprintf(stderr, "Received buf: %s\n", buf);
+                            printCharBufInInts(buf, bufsize, "ACK");
                             if(strncmp(buf, ACK, strlen(ACK)) == 0)
                             {
                                 // ack received
                                 fprintf(stderr, "ACK Received.\n");
                                 //hasSent = 1;
-                                if(buf[strlen(ACK)] == packetNum)
+                                fprintf(stderr, "%d\n", buf[strlen(ACK)]);
+                                fprintf(stderr, "%d\n", packetNum+1);
+                                if(buf[strlen(ACK)] == (packetNum%10)+1)
                                 {
                                     fprintf(stderr, "ACK is for correct packet\n");
+                                    hasSent = 1;
                                     break;
                                 }
                             }
