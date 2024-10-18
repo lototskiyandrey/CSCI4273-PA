@@ -81,7 +81,7 @@ int main(int argc, char **argv)
         {   
             fd_set readfds;
             tv.tv_sec = 0;
-            tv.tv_usec = 200;
+            tv.tv_usec = 2000;
             FD_ZERO(&readfds);
             FD_SET(sckt, &readfds);
             zeroBuf(prevBuf, bufsize);
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
                     fprintf(stderr, "New buf received is unique.\n");
                     (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
                     zeroBuf(prevBuf, bufsize);
-                    strcpy(prevBuf, buf);
+                    strncpy(prevBuf, buf, bufsize);
                 }
                 // printCharBufInInts(buf, bufsize, "buf");
                 zeroBuf(buf, bufsize);

@@ -175,7 +175,7 @@ int main(int argc, char **argv)
                 while(numListens < 10)
                 {
                     tv.tv_sec = 0;
-                    tv.tv_usec = 200;
+                    tv.tv_usec = 2000;
                     FD_ZERO(&readfds);
                     FD_SET(sckt, &readfds);
                     fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
