@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 
         // Send an ack that we have received the message
 
-        fprintf(stderr, "Received Message: %s\n", buf);
+        // fprintf(stderr, "Received Message: %s\n", buf);
 
         zeroBuf(command, 10);
         zeroBuf(fileName, 128);
@@ -77,8 +77,10 @@ int main(int argc, char **argv)
 
             struct timeval tv;
             zeroBuf(buf, bufsize);
+            zeroBuf(prevBuf, bufsize);
             fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
             int packetNum;
+            int oldPacketNum = 0;
             while(1)
             {   
                 fd_set readfds;
@@ -86,42 +88,46 @@ int main(int argc, char **argv)
                 tv.tv_usec = 2000;
                 FD_ZERO(&readfds);
                 FD_SET(sckt, &readfds);
-                zeroBuf(prevBuf, bufsize);
                 fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
                 int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
                 if(rv == 1)
                 {
-                    fprintf(stderr, "Attempting to Receive\n");
+                    // fprintf(stderr, "Attempting to Receive\n");
                     numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&client, &clientlen);
                     if(numBytesReceived < 0) {
                         continue;
                     }
-                    fprintf(stderr, "Number of bytes received: %d\n", numBytesReceived);
+                    // fprintf(stderr, "Number of bytes received: %d\n", numBytesReceived);
                     int numBytesInBuf = numBytesToReadInBuf(buf, bufsize);
-                    fprintf(stderr, "Number of bytes in the buffer: %d\n", numBytesInBuf);
+                    // fprintf(stderr, "Number of bytes in the buffer: %d\n", numBytesInBuf);
                     packetNum = getBufPacketNum(buf, bufsize);
                     if(isEOFPacket(buf, bufsize))
                     {
-                        fprintf(stderr, "All Bytes in File Read\n");
+                        // fprintf(stderr, "All Bytes in File Read\n");
                         strcpy(buf, ACK);
                         numBytesReadToStringInBuf(buf, bufsize, strlen(ACK), packetNum);
                         (void)sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
                         break;
                     }
-                    if(packetNum != getBufPacketNum(prevBuf, bufsize))
+                    if(packetNum != oldPacketNum)
                     {
-                        fprintf(stderr, "New buf received is unique.\n");
+                        // fprintf(stderr, "New buf received is unique.\n");
+                        // fprintf(stderr, "Difference between this and previous packet is: %d.\n", packetNum - getBufPacketNum(prevBuf, bufsize));
+                        // fprintf(stderr, "Buf packet num: %d, prevBuf packet num: %d\n", packetNum, getBufPacketNum(prevBuf, bufsize));
+                        // zeroBuf(prevBuf, bufsize);
+                        // strncpy(prevBuf, buf, bufsize);
                         (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
-                        zeroBuf(prevBuf, bufsize);
-                        strncpy(prevBuf, buf, bufsize);
+                        fprintf(stderr, "New packet num: %d, Old packet num: %d\n", packetNum, oldPacketNum);
+                        oldPacketNum = packetNum;
+                        // printCharBufInInts(prevBuf, bufsize, "prevBuf");
                     }
                     zeroBuf(buf, bufsize);
-                    fprintf(stderr, "Sending Acknowledgement.\n");
+                    // fprintf(stderr, "Sending Acknowledgement.\n");
                     strcpy(buf, ACK);
                     numBytesReadToStringInBuf(buf, bufsize, strlen(ACK), packetNum);
                     fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
                     int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
-                    fprintf(stderr, "Acknowledgement Sent. %d\n", numBytesSent);
+                    // fprintf(stderr, "Acknowledgement Sent. %d\n", numBytesSent);
                     (void)numBytesSent;
                 }
             }
