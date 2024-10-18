@@ -127,12 +127,15 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
                     (void)numBytesSent;
                     printCharBufInInts(buf, bufsize, "buf");
-                    zeroBuf(buf, bufsize);
+                    // zeroBuf(buf, bufsize);
 
                     fprintf(stderr, "Waiting for Acknowledgement.\n");
                     fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
                     int numBytesReceived;
                     int numListens = 0;
+
+                    char ACKBuf[bufsize];
+
                     while(numListens < 10)
                     {
                         tv.tv_sec = 0;
@@ -143,22 +146,22 @@ int main(int argc, char **argv)
                         int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
                         if(rv == 1)
                         {   
-                            zeroBuf(buf, bufsize);
-                            numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+                            zeroBuf(ACKBuf, bufsize);
+                            numBytesReceived = recvfrom(sckt, ACKBuf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
                             if(numBytesReceived < 0)
                             {
                                 continue;
                             }
                             //fprintf(stderr, "Received buf: %s\n", buf);
-                            printCharBufInInts(buf, bufsize, "ACK");
-                            if(strncmp(buf, ACK, strlen(ACK)) == 0)
+                            printCharBufInInts(ACKBuf, bufsize, "ACK");
+                            if(strncmp(ACKBuf, ACK, strlen(ACK)) == 0)
                             {
                                 // ack received
                                 fprintf(stderr, "ACK Received.\n");
                                 //hasSent = 1;
                                 fprintf(stderr, "%d\n", buf[strlen(ACK)]);
                                 fprintf(stderr, "%d\n", packetNum+1);
-                                if(buf[strlen(ACK)] == (packetNum%10)+1)
+                                if(ACKBuf[strlen(ACK)] == (packetNum%10)+1)
                                 {
                                     fprintf(stderr, "ACK is for correct packet\n");
                                     hasSent = 1;
