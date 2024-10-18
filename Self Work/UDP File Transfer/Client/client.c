@@ -11,8 +11,8 @@
 #include <sys/time.h>
 
 #define bufsize 1024
-#define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
-#define ACK "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
+#define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9"      //"wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
+#define ACK       "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
 #define NUMSENDS 10
 
 int zeroBuf(char *buf, int size);
@@ -106,6 +106,7 @@ int main(int argc, char **argv)
             int packetNum = 0;
             zeroBuf(buf, bufsize);
             ssize_t bytesReadInFile;
+            int isEOF = 0;
             while(1)
             {
                 bytesReadInFile = fread(buf, sizeof(char), bufsize-5, f);
@@ -113,9 +114,10 @@ int main(int argc, char **argv)
                 {
                     zeroBuf(buf, bufsize);
                     strcpy(buf, EOFPACKET);
-                    numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET), 0);
-                    numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
-                    break;
+                    numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET), packetNum);
+                    // numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+                    // break;
+                    isEOF = 1;
                 }
                 
                 int numSends = 0;
@@ -174,6 +176,12 @@ int main(int argc, char **argv)
                     }
                     numSends++;    
                 }
+
+                if(isEOF == 1)
+                {
+                    break;
+                }
+
                 if(numSends >= NUMSENDS)
                 {
                     fprintf(stderr, "Connection to server must have been lost.\n");

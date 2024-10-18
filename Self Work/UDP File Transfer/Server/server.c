@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 #define bufsize 1024
-#define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
+#define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9"  //"wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
 #define ACK "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
 
 int zeroBuf(char *buf, int size);
@@ -58,13 +58,6 @@ int main(int argc, char **argv)
         fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
         int numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&client, &clientlen);
         printf("Received datagram from [host:port] = [%s:%d]\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-        // printf("Num bytes received: %d\nReceived Buffer-->\n%s\n", numBytesreceived, buf);
-        // printf("Sending reply\n");
-        // sendto(sckt, buf, numBytesreceived, 0, (struct sockaddr *)&client, clientlen);
-
-        // Send an ack that we have received the message
-
-        // fprintf(stderr, "Received Message: %s\n", buf);
 
         zeroBuf(command, 10);
         zeroBuf(fileName, 128);
@@ -105,21 +98,17 @@ int main(int argc, char **argv)
                     {
                         // fprintf(stderr, "All Bytes in File Read\n");
                         strcpy(buf, ACK);
+                        buf[strlen(ACK)] = packetNum;
+                        numBytesReadToStringInBuf(buf, bufsize, strlen(ACK)+1, packetNum);
                         numBytesReadToStringInBuf(buf, bufsize, strlen(ACK), packetNum);
                         (void)sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
                         break;
                     }
                     if(packetNum != oldPacketNum)
                     {
-                        // fprintf(stderr, "New buf received is unique.\n");
-                        // fprintf(stderr, "Difference between this and previous packet is: %d.\n", packetNum - getBufPacketNum(prevBuf, bufsize));
-                        // fprintf(stderr, "Buf packet num: %d, prevBuf packet num: %d\n", packetNum, getBufPacketNum(prevBuf, bufsize));
-                        // zeroBuf(prevBuf, bufsize);
-                        // strncpy(prevBuf, buf, bufsize);
                         (void)fwrite(buf, sizeof(char), numBytesInBuf, f);
                         fprintf(stderr, "New packet num: %d, Old packet num: %d\n", packetNum, oldPacketNum);
                         oldPacketNum = packetNum;
-                        // printCharBufInInts(prevBuf, bufsize, "prevBuf");
                     }
                     zeroBuf(buf, bufsize);
                     // fprintf(stderr, "Sending Acknowledgement.\n");
