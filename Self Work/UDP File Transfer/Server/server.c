@@ -124,11 +124,12 @@ int main(int argc, char **argv)
                     zeroBuf(buf, bufsize);
                     // fprintf(stderr, "Sending Acknowledgement.\n");
                     strcpy(buf, ACK);
-                    numBytesReadToStringInBuf(buf, bufsize, strlen(ACK), packetNum);
+                    buf[strlen(ACK)] = packetNum;
+                    numBytesReadToStringInBuf(buf, bufsize, strlen(ACK)+1, packetNum);
                     fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
-                    int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
+                    (void)sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&client, clientlen);
                     // fprintf(stderr, "Acknowledgement Sent. %d\n", numBytesSent);
-                    (void)numBytesSent;
+                    // (void)numBytesSent;
                 }
             }
 

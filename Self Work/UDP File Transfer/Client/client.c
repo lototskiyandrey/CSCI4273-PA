@@ -154,8 +154,12 @@ int main(int argc, char **argv)
                             {
                                 // ack received
                                 fprintf(stderr, "ACK Received.\n");
-                                hasSent = 1;
-                                break;
+                                //hasSent = 1;
+                                if(buf[strlen(ACK)] == packetNum)
+                                {
+                                    fprintf(stderr, "ACK is for correct packet\n");
+                                    break;
+                                }
                             }
 
                         }
