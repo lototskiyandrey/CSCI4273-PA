@@ -43,8 +43,8 @@ int main(int argc, char **argv)
     me.sin_addr.s_addr = htonl(INADDR_ANY);
 
 
-    (void)bind(sckt, (struct sockaddr *)&me, sizeof(me));
-
+    int bindResult = bind(sckt, (struct sockaddr *)&me, sizeof(me));
+    (void)bindResult;
 
     char buf[bufsize], prevBuf[bufsize];
     unsigned int clientlen = sizeof(client);
