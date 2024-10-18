@@ -13,6 +13,7 @@
 #define bufsize 1024
 #define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
 #define ACK "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
+#define NUMSENDS 10
 
 int zeroBuf(char *buf, int size);
 // void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
@@ -82,158 +83,101 @@ int main(int argc, char **argv)
         zeroBuf(fileName, 128);
 
         sscanf(buf, "%s %s", command, fileName);
-        
-        FILE *f = fopen(fileName, "r");
 
-        if(f == NULL)
+        if(strncmp(command, "put", 3) == 0)
         {
-            fprintf(stderr, "File %s does not exist.\n", fileName);
-            continue;
-        }
+            FILE *f = fopen(fileName, "r");
 
-     
-        
-        int numBytesSent = sendto(sckt, buf, strlen(buf), 0, (struct sockaddr *)&serveraddress, serverlen);
-        if(numBytesSent < 0)
-        {
-            fprintf(stderr, "Message not sent.\n");
-            continue;
-        }
-
-        // Check for acknowledgement here!
-        //
-        // fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-        // int numBytesReceived;
-        // while(1)
-        // {
-        //     int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
-        //     if(rv == 1)
-        //     {   
-        //         zeroBuf(buf, bufsize);
-        //         numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
-        //         if(numBytesReceived < 0)
-        //         {
-        //             continue;
-        //         }
-
-        //         if(strncmp(buf, ACK, strlen(ACK)) == 0)
-        //         {
-        //             // ack received
-        //             fprintf(stderr, "ACK Received.\n");
-        //             break;
-        //         }
-
-        //     }
-        //     else
-        //     {
-        //         // Nothing in socket
-        //     }
-        // }
-        //
-        //
-        //
-
-        fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
-
-        fprintf(stdout, "Sending the file to the server\n");
-
-        int packetNum = 0;
-
-        zeroBuf(buf, bufsize);
-        ssize_t bytesReadInFile;
-        while(1)
-        {
-            bytesReadInFile = fread(buf, sizeof(char), bufsize-5, f);
-            if(bytesReadInFile <= 0)
+            if(f == NULL)
             {
-                zeroBuf(buf, bufsize);
-                strcpy(buf, EOFPACKET);
-                numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET), 0);
-                numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
-                break;
+                fprintf(stderr, "File %s does not exist.\n", fileName);
+                continue;
             }
-            
-            int numSends = 0;
-            int hasSent = 0;
-            while(numSends < 3 && hasSent == 0)
-            {
-                numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile, packetNum);
-                int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
-                fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
-                (void)numBytesSent;
-                printCharBufInInts(buf, bufsize, "buf");
-                zeroBuf(buf, bufsize);
-                
-                
-                // Check for acknowledgement here!
-                //
 
-                fprintf(stderr, "Waiting for Acknowledgement.\n");
-                fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-                int numBytesReceived;
-                int numListens = 0;
-                while(numListens < 10)
+            int numBytesSent = sendto(sckt, buf, strlen(buf), 0, (struct sockaddr *)&serveraddress, serverlen);
+            if(numBytesSent < 0)
+            {
+                fprintf(stderr, "Message not sent.\n");
+                continue;
+            }
+
+            fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
+            fprintf(stdout, "Sending the file to the server\n");
+            int packetNum = 0;
+            zeroBuf(buf, bufsize);
+            ssize_t bytesReadInFile;
+            while(1)
+            {
+                bytesReadInFile = fread(buf, sizeof(char), bufsize-5, f);
+                if(bytesReadInFile <= 0)
                 {
-                    tv.tv_sec = 0;
-                    tv.tv_usec = 2000;
-                    FD_ZERO(&readfds);
-                    FD_SET(sckt, &readfds);
-                    fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-                    int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
-                    if(rv == 1)
-                    {   
-                        zeroBuf(buf, bufsize);
-                        numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
-                        if(numBytesReceived < 0)
-                        {
-                            continue;
-                        }
-
-                        fprintf(stderr, "Received buf: %s\n", buf);
-
-                        if(strncmp(buf, ACK, strlen(ACK)) == 0)
-                        {
-                            // ack received
-                            fprintf(stderr, "ACK Received.\n");
-                            hasSent = 1;
-                            break;
-                        }
-
-                    }
-                    else
-                    {
-                        // Nothing in socket
-                        // fprintf(stderr, "Nothing in Socket right now!\n");
-                    }
-                    numListens++;
+                    zeroBuf(buf, bufsize);
+                    strcpy(buf, EOFPACKET);
+                    numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET), 0);
+                    numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+                    break;
                 }
+                
+                int numSends = 0;
+                int hasSent = 0;
+                while(numSends < NUMSENDS && hasSent == 0)
+                {
+                    numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile, packetNum);
+                    int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+                    fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
+                    (void)numBytesSent;
+                    printCharBufInInts(buf, bufsize, "buf");
+                    zeroBuf(buf, bufsize);
 
-                numSends++;
-            
+                    fprintf(stderr, "Waiting for Acknowledgement.\n");
+                    fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+                    int numBytesReceived;
+                    int numListens = 0;
+                    while(numListens < 10)
+                    {
+                        tv.tv_sec = 0;
+                        tv.tv_usec = 2000;
+                        FD_ZERO(&readfds);
+                        FD_SET(sckt, &readfds);
+                        fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+                        int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
+                        if(rv == 1)
+                        {   
+                            zeroBuf(buf, bufsize);
+                            numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+                            if(numBytesReceived < 0)
+                            {
+                                continue;
+                            }
+                            fprintf(stderr, "Received buf: %s\n", buf);
+                            if(strncmp(buf, ACK, strlen(ACK)) == 0)
+                            {
+                                // ack received
+                                fprintf(stderr, "ACK Received.\n");
+                                hasSent = 1;
+                                break;
+                            }
+
+                        }
+                        numListens++;
+                    }
+                    numSends++;    
+                }
+                if(numSends >= NUMSENDS)
+                {
+                    fprintf(stderr, "Connection to server must have been lost.\n");
+                    return 1;
+                }
+                
+                packetNum++;
+
             }
-
-            if(numSends >= 3)
-            {
-                fprintf(stderr, "Connection to server must have been lost.\n");
-                return 1;
-            }
             
-            packetNum++;
-
+            fclose(f);
         }
         
-        fclose(f);
-
-
-
-        // Send one more packet saying that file transfer has been completed!
         
-        // Old Code
-        // sendto(sckt, buf, strlen(buf), 0, (struct sockaddr *)&serveraddress, serverlen);
-        // zeroBuf(buf, bufsize);
-        // printf("try to receive a line from the server\n");
-        // int numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
-        // printf("Received %d bytes\n%s\n\n", numBytesReceived, buf);
+
     }
     
     return 0;
