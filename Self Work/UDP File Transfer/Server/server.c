@@ -22,9 +22,11 @@ int isEOFPacket(char *buf, int size);
 int getBufPacketNum(char *buf, int size);
 void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet);
 void deconstructPacket(int *packetNum, int *packetDataLength, char *data, char *packet);
-void receiveCommandFromClient(int sckt, struct sockaddr_in client, unsigned int clientlen, char *recvPacket, int flags, char *command, char *inputFile);
+// void receiveCommandFromClient(int sckt, struct sockaddr_in client, unsigned int clientlen, char *recvPacket, int flags, char *command, char *inputFile);
+void receiveCommandFromClient(int *sckt, struct sockaddr_in *client, unsigned int *clientlen, char *recvPacket, int flags, char *command, char *inputFile);
 void receivePacketFromClient(int sckt, struct sockaddr_in client, unsigned int clientlen, char *recvPacket);
-void sendAcknowledgementToClient(int sckt, struct sockaddr_in client, unsigned int clientlen, char *recvPacket);
+// void sendAcknowledgementToClient(int sckt, struct sockaddr_in client, unsigned int clientlen, char *recvPacket);
+void sendAcknowledgementToClient(int *sckt, struct sockaddr_in *client, unsigned int *clientlen, char *recvPacket);
 // Todo: Add a packet number to each packet to test if packets are the same.
 
 int main(int argc, char **argv)
@@ -69,7 +71,7 @@ int main(int argc, char **argv)
 
         // sscanf(buf, "%s %s", command, fileName);
 
-        receiveCommandFromClient(sckt, client, clientlen, recvPacket, flags, command, inputFile);
+        receiveCommandFromClient(&sckt, &client, &clientlen, recvPacket, flags, command, inputFile);
 
         if(strncmp(command, "put", 3) == 0)
         {
@@ -102,26 +104,26 @@ int main(int argc, char **argv)
 
                     // Send an acknowledgement here.
 
-                    // sendAcknowledgementToClient(sckt, client, clientlen, recvPacket);
+                    sendAcknowledgementToClient(&sckt, &client, &clientlen, recvPacket);
 
 
 
                     // char data[bufsize];
                     // int packetNum;
                     // int packetDataLength;
-                    deconstructPacket(&packetNum, &packetDataLength, data, recvPacket);
+                    // deconstructPacket(&packetNum, &packetDataLength, data, recvPacket);
 
-                    char sendPacket[packetsize];
-                    char newData[bufsize];
-                    zeroBuf(newData, bufsize);
-                    strcpy(newData, ACK);
+                    // char sendPacket[packetsize];
+                    // char newData[bufsize];
+                    // zeroBuf(newData, bufsize);
+                    // strcpy(newData, ACK);
 
-                    buildPacket(&packetNum, bufsize, newData, sendPacket);
+                    // buildPacket(&packetNum, bufsize, newData, sendPacket);
 
-                    int numBytesSent = sendto(sckt, sendPacket, packetsize, 0, (struct sockaddr *)&client, clientlen);
+                    // int numBytesSent = sendto(sckt, sendPacket, packetsize, 0, (struct sockaddr *)&client, clientlen);
 
-                    fprintf(stderr, "Sent acknowledgement of %d.\n", numBytesSent);
-                    fprintf(stderr, "Acknowledgement is %s\n", newData);
+                    // fprintf(stderr, "Sent acknowledgement of %d.\n", numBytesSent);
+                    // fprintf(stderr, "Acknowledgement is %s\n", newData);
 
 
 
@@ -144,7 +146,7 @@ int main(int argc, char **argv)
                     {
                         // The new packet is different from the old one --> So it is unique
                         fprintf(stderr, "New packet is unique.\n");
-                        fwrite(data, sizeof(char), bufsize, f);
+                        fwrite(data, sizeof(char), packetDataLength, f);
                         prevPacketNum = packetNum;
                     }
                 }
@@ -330,15 +332,15 @@ void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof)
 }
 
 
-void receiveCommandFromClient(int sckt, struct sockaddr_in client, unsigned int clientlen, char *recvPacket, int flags, char *command, char *inputFile)
+void receiveCommandFromClient(int *sckt, struct sockaddr_in *client, unsigned int *clientlen, char *recvPacket, int flags, char *command, char *inputFile)
 {
     
     // First received the packet
     zeroBuf(recvPacket, packetsize);
     printf("UDP server: waiting for datagram\n");
-    fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
-    int numBytesReceived = recvfrom(sckt, recvPacket, packetsize, 0, (struct sockaddr *)&client, &clientlen);
-    printf("Received datagram from [host:port] = [%s:%d]\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
+    fcntl(*sckt, F_SETFL, flags & ~O_NONBLOCK);
+    int numBytesReceived = recvfrom(*sckt, recvPacket, packetsize, 0, (struct sockaddr *)client, clientlen);
+    printf("Received datagram from [host:port] = [%s:%d]\n", inet_ntoa(client->sin_addr), ntohs(client->sin_port));
     (void)numBytesReceived;
 
     // Next, disassemble the received packet to get the command and input file of the packet.
@@ -362,7 +364,7 @@ void receivePacketFromClient(int sckt, struct sockaddr_in client, unsigned int c
     fprintf(stderr, "Received %d bytes.\n", numBytesReceived);
 }
 
-void sendAcknowledgementToClient(int sckt, struct sockaddr_in client, unsigned int clientlen, char *recvPacket)
+void sendAcknowledgementToClient(int *sckt, struct sockaddr_in *client, unsigned int *clientlen, char *recvPacket)
 {
     char data[bufsize];
     int packetNum;
@@ -376,7 +378,7 @@ void sendAcknowledgementToClient(int sckt, struct sockaddr_in client, unsigned i
 
     buildPacket(&packetNum, bufsize, newData, sendPacket);
 
-    int numBytesSent = sendto(sckt, sendPacket, packetsize, 0, (struct sockaddr *)&client, clientlen);
+    int numBytesSent = sendto(*sckt, sendPacket, packetsize, 0, (struct sockaddr *)client, *clientlen);
 
     fprintf(stderr, "Sent acknowledgement of %d.\n", numBytesSent);
     fprintf(stderr, "Acknowledgement is %s\n", newData);

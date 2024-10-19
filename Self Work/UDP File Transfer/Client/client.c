@@ -25,7 +25,7 @@ int numBytesToReadInBuf(char *buf, int size);
 int bufPacketNum(char *buf, int size);
 void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet);
 void deconstructPacket(int *packetNum, int *packetDataLength, char *data, char *packet);
-void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof);
+void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof, char *packet, int *packetNum);
 int checkIfPacketMatchesAck(int *packetNum, int *packetDataLength, char *data, int *prevPacket);
 
 // Todo: Add a packet number to each packet to test if packets are the same.
@@ -118,11 +118,11 @@ int main(int argc, char **argv)
             {   
                 zeroBuf(buf, bufsize);   
                 ssize_t bytesReadInFile = fread(buf, sizeof(char), bufsize, f);
-                formatBuf(buf, bytesReadInFile, &isEOF);
                 
-                // Format the packet here!
-                fprintf(stderr, "%d\n", (int)strlen(buf));
-                buildPacket(&packetNum, bufsize, buf, packet);
+                
+                // build packet
+                formatBuf(buf, bytesReadInFile, &isEOF, packet, &packetNum);
+                
 
                 int numSends = 0;
                 int hasSent = 0;
@@ -341,7 +341,7 @@ void deconstructPacket(int *packetNum, int *packetDataLength, char *data, char *
 // This function checks whether or not buf is empty after reading from the file
 // If Buf is empty after reading from the file, then we have reached the EOF
 // If not, then proceed normally
-void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof)
+void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof, char *packet, int *packetNum)
 {
     if(bytesReadInFile <= 0)
     {
@@ -349,8 +349,13 @@ void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof)
         zeroBuf(buf, bufsize);
         strcpy(buf, LASTPACKET);
         fprintf(stderr, "Sending end of transmission message.\n");
+        fprintf(stderr, "%d\n", (int)strlen(buf));
+        buildPacket(packetNum, strlen(LASTPACKET), buf, packet);
         return;
     }
+
+    fprintf(stderr, "%d\n", (int)strlen(buf));
+    buildPacket(packetNum, (int)bytesReadInFile, buf, packet);
     fprintf(stderr, "Sending regular buf.\n");
 }
 
@@ -365,7 +370,7 @@ int checkIfPacketMatchesAck(int *packetNum, int *packetDataLength, char *data, i
         truePrevPacket = operationBase;
     }
 
-    if(*packetNum == truePrevPacket && *packetDataLength == strlen(ACK) && strncmp(data, ACK, *packetDataLength) == 0)
+    if(*packetNum == truePrevPacket && strncmp(data, ACK, *packetDataLength) == 0)
     {
         return 1;
     }
