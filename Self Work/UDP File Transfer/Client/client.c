@@ -66,7 +66,7 @@ int main(int argc, char **argv)
     unsigned int serverlen = sizeof(serveraddress);
     (void)serverlen;
     char buf[bufsize];
-    char packet[bufsize];
+    char packet[packetsize];
     // int numBytesSent;
     char fileName[128];
     char command[10];
@@ -100,6 +100,7 @@ int main(int argc, char **argv)
             
             // First we will build the packet to send
             int packetNum = 0;
+
             buildPacket(&packetNum, strlen(buf), buf, packet);
             int numBytesSent = sendto(sckt, packet, packetsize, 0, (struct sockaddr *)&serveraddress, serverlen);
             if(numBytesSent < 0)
@@ -109,7 +110,7 @@ int main(int argc, char **argv)
             }
 
             fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
-            fprintf(stdout, "Sending the file to the server\n");
+            fprintf(stderr, "Sent the file.\n");
 
             
             int isEOF = 0;
@@ -120,24 +121,22 @@ int main(int argc, char **argv)
                 formatBuf(buf, bytesReadInFile, &isEOF);
                 
                 // Format the packet here!
+                fprintf(stderr, "%d\n", (int)strlen(buf));
                 buildPacket(&packetNum, bufsize, buf, packet);
 
                 int numSends = 0;
                 int hasSent = 0;
                 while(numSends < NUMSENDS && hasSent == 0)
                 {
-                    int numBytesSent = sendto(sckt, buf, packetsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+                    int numBytesSent = sendto(sckt, packet, packetsize, 0, (struct sockaddr *)&serveraddress, serverlen);
                     fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
                     (void)numBytesSent;
                     
 
                     fprintf(stderr, "Waiting for Acknowledgement.\n");
+                    // fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
+                    // int numBytesReceived;
                     fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-                    int numBytesReceived;
-                    
-
-                    char recvPacket[packetsize];
-
                     int numListens = 0;
                     while(hasSent == 0  && numListens < NUMSENDS)
                     {
@@ -147,23 +146,28 @@ int main(int argc, char **argv)
                         FD_SET(sckt, &readfds);
                         fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
                         int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
+                        char recvPacket[packetsize];
                         if(rv == 1)
                         {   
                             zeroBuf(recvPacket, packetsize);
-                            numBytesReceived = recvfrom(sckt, recvPacket, packetsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+                            int numBytesReceived = recvfrom(sckt, recvPacket, packetsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
                             if(numBytesReceived < 0)
                             {
                                 continue;
                             }
                             
-                            int *recvPacketNum;
-                            int *recvPacketDataLength;
-                            char *recvData;
+                            int recvPacketNum;
+                            int recvPacketDataLength;
+                            char recvData[bufsize];
 
-                            deconstructPacket(recvPacketNum, recvPacketDataLength, recvData, recvPacket);
+                            deconstructPacket(&recvPacketNum, &recvPacketDataLength, recvData, recvPacket);
 
-                            if(checkIfPacketMatchesAck(recvPacketNum, recvPacketDataLength, recvData, &packetNum) == 1)
+                            //printCharBufInInts(recvPacket, packetsize, "received packet");
+                            fprintf(stderr, "Printing received: %s\n", recvData);
+
+                            if(checkIfPacketMatchesAck(&recvPacketNum, &recvPacketDataLength, recvData, &packetNum) == 1)
                             {
+                                fprintf(stderr, "Acknowledgement Received.\n");
                                 hasSent = 1;
                             }
 
@@ -275,22 +279,22 @@ void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet)
 
     zeroBuf(packet, packetsize);
 
-    if(packetNum < 0 || *packetNum > operationBase)
+    if(*packetNum < 0 || *packetNum > operationBase)
     {
         fprintf(stderr, "Invalid range for a packet.\n");
         return;
     }
 
-    if(packetDataLength < 0 || packetDataLength > 1020)
+    if(packetDataLength < 0 || packetDataLength > bufsize)
     {
         fprintf(stderr, "Invalid range for the packet data length.\n");
         return;
     }
 
-    if(strlen(data) > 1020)
-    {
-        fprintf(stderr, "Data is too big to fit in packet.\n");
-    }
+    // if(strlen(data)-1 > bufsize)
+    // {
+    //     fprintf(stderr, "Data is too big to fit in packet.\n");
+    // }
 
     // First element of the packet contains the packetNum
 
@@ -304,14 +308,14 @@ void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet)
 
     // Finally, dump the data into the packet
 
-    for(int i = 0;i < strlen(data); i++)
+    for(int i = 0;i < packetDataLength; i++)
     {
         packet[packetDataStart + i] = data[i];
     }
 
     // Now we are done. Our packet has been created.
     // Increment packet num by 1
-    (void)*packetNum++;
+    *packetNum = *packetNum + 1;
 
 }
 
@@ -327,6 +331,7 @@ void deconstructPacket(int *packetNum, int *packetDataLength, char *data, char *
 
     *packetDataLength = packet[1] * operationBase + packet[2];
 
+    zeroBuf(data, bufsize);
     for(int i = 0; i < *packetDataLength; i++)
     {
         data[i] = packet[i + packetDataStart];
@@ -341,8 +346,12 @@ void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof)
     if(bytesReadInFile <= 0)
     {
         *eof = 1;
+        zeroBuf(buf, bufsize);
         strcpy(buf, LASTPACKET);
+        fprintf(stderr, "Sending end of transmission message.\n");
+        return;
     }
+    fprintf(stderr, "Sending regular buf.\n");
 }
 
 // This function checks whether or not a received packet is the appropriate acknowledgement to the sent packet
