@@ -93,39 +93,12 @@ int main(int argc, char **argv)
                 int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
                 if(rv == 1)
                 {
-                    // int numBytesReceived = recvfrom(sckt, buf, bufsize, 0, (struct sockaddr *)&client, &clientlen);
-                    // if(numBytesReceived < 0) {
-                    //     continue;
-                    // }
-
-                    // Receive a packet from the client here.
 
                     receivePacketFromClient(sckt, client, clientlen, recvPacket);
 
                     // Send an acknowledgement here.
 
                     sendAcknowledgementToClient(&sckt, &client, &clientlen, recvPacket);
-
-
-
-                    // char data[bufsize];
-                    // int packetNum;
-                    // int packetDataLength;
-                    // deconstructPacket(&packetNum, &packetDataLength, data, recvPacket);
-
-                    // char sendPacket[packetsize];
-                    // char newData[bufsize];
-                    // zeroBuf(newData, bufsize);
-                    // strcpy(newData, ACK);
-
-                    // buildPacket(&packetNum, bufsize, newData, sendPacket);
-
-                    // int numBytesSent = sendto(sckt, sendPacket, packetsize, 0, (struct sockaddr *)&client, clientlen);
-
-                    // fprintf(stderr, "Sent acknowledgement of %d.\n", numBytesSent);
-                    // fprintf(stderr, "Acknowledgement is %s\n", newData);
-
-
 
                     // Check whether or not the received packet is unique, and if it is unique, then write it to the file.
 
@@ -258,7 +231,7 @@ void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet)
 
     zeroBuf(packet, packetsize);
 
-    if(*packetNum < 0 || *packetNum > operationBase)
+    if(*packetNum < 0)
     {
         fprintf(stderr, "Invalid range for a packet.\n");
         return;
@@ -270,10 +243,10 @@ void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet)
         return;
     }
 
-    if(strlen(data) > bufsize)
-    {
-        fprintf(stderr, "Data is too big to fit in packet.\n");
-    }
+    // if(strlen(data) > bufsize)
+    // {
+    //     fprintf(stderr, "Data is too big to fit in packet.\n");
+    // }
 
     // First element of the packet contains the packetNum
 

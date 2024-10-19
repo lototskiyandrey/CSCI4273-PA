@@ -134,8 +134,6 @@ int main(int argc, char **argv)
                     
 
                     fprintf(stderr, "Waiting for Acknowledgement.\n");
-                    // fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
-                    // int numBytesReceived;
                     fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
                     int numListens = 0;
                     while(hasSent == 0  && numListens < NUMSENDS)
@@ -164,6 +162,8 @@ int main(int argc, char **argv)
 
                             //printCharBufInInts(recvPacket, packetsize, "received packet");
                             fprintf(stderr, "Printing received: %s\n", recvData);
+
+                            fprintf(stderr, "Received packet num: %d.\n", recvPacketNum);
 
                             if(checkIfPacketMatchesAck(&recvPacketNum, &recvPacketDataLength, recvData, &packetNum) == 1)
                             {
@@ -279,7 +279,7 @@ void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet)
 
     zeroBuf(packet, packetsize);
 
-    if(*packetNum < 0 || *packetNum > operationBase)
+    if(*packetNum < 0)
     {
         fprintf(stderr, "Invalid range for a packet.\n");
         return;
@@ -364,10 +364,22 @@ void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof, char *packet, int *
 int checkIfPacketMatchesAck(int *packetNum, int *packetDataLength, char *data, int *prevPacket)
 {
     const int operationBase = 127;
-    int truePrevPacket = *prevPacket - 1;
-    if(*prevPacket - 1 < 0)
+    int truePrevPacket = *prevPacket % operationBase - 1;
+    if(truePrevPacket < 0)
     {
-        truePrevPacket = operationBase;
+        truePrevPacket = operationBase-1;
+    }
+
+    fprintf(stderr, "Previous packet: %d.\n", truePrevPacket);
+
+    if(*packetNum == 126 && truePrevPacket == 127 && strncmp(data, ACK, *packetDataLength) == 0)
+    {
+        return 1;
+    }
+
+    if(*packetNum == 127 && truePrevPacket == 0 && strncmp(data, ACK, *packetDataLength) == 0)
+    {
+        return 1;
     }
 
     if(*packetNum == truePrevPacket && strncmp(data, ACK, *packetDataLength) == 0)
