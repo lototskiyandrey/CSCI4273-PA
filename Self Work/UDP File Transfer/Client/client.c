@@ -9,11 +9,13 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/time.h>
+#include <limits.h>
 
-#define bufsize 1024
-#define EOFPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9"      //"wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
+#define bufsize 1020
+#define LASTPACKET "wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9"      //"wYZX3bXY6i7B0kZYJE1dLWXqdhJWwkR0tyJ4eh6vOT5B0DznPuwDr7sBRiUPG2MJWgdIpwXgMU18Sd8mTLUIwIEHr1s8Vdm1ED3yeXnv3f5HZL6hGeNmT5X5lWbBpy2JWZOIVDLvYT9DAjH1OA8eoJEcEz66aVw9SFrFcd7tZncPQxej80aEL1r6MTx9P6az"
 #define ACK       "zFZ7HvRNh3jZjp5snMyNby3Cu0giNBc46S4hnQlYJqwb6R1Eh0nVNgIZ9REDDKLam9QcXviMnd0kg3TWGJNVm4qt43V0hRCYMEon34p68zqSUAj0JkW4ykXsCqZW6bQhWitTBMeCLy8XcR08Kx50c0VPpT9MNYE4"
 #define NUMSENDS 10
+#define packetsize 1024
 
 int zeroBuf(char *buf, int size);
 // void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert);
@@ -21,6 +23,10 @@ void numBytesReadToStringInBuf(char *buf, int size, int numBytesToInsert, int pa
 void printCharBufInInts(char *buf, int size, char *bufName);
 int numBytesToReadInBuf(char *buf, int size);
 int bufPacketNum(char *buf, int size);
+void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet);
+void deconstructPacket(int *packetNum, int *packetDataLength, char *data, char *packet);
+void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof);
+int checkIfPacketMatchesAck(int *packetNum, int *packetDataLength, char *data, int *prevPacket);
 
 // Todo: Add a packet number to each packet to test if packets are the same.
 
@@ -60,6 +66,7 @@ int main(int argc, char **argv)
     unsigned int serverlen = sizeof(serveraddress);
     (void)serverlen;
     char buf[bufsize];
+    char packet[bufsize];
     // int numBytesSent;
     char fileName[128];
     char command[10];
@@ -67,7 +74,7 @@ int main(int argc, char **argv)
     int flags = fcntl(sckt, F_GETFL);
     fd_set readfds;
     struct timeval tv;
-    
+
     
     while(1)
     {   
@@ -75,9 +82,6 @@ int main(int argc, char **argv)
         zeroBuf(buf, bufsize);
         fprintf(stdout, "Enter a valid command (put FILENAME): ");
         fgets(buf, bufsize, stdin);
-        //buf[strlen(buf)-1] = 0;
-        
-        // printf("%s\n", buf);
 
         zeroBuf(command, 10);
         zeroBuf(fileName, 128);
@@ -93,8 +97,11 @@ int main(int argc, char **argv)
                 fprintf(stderr, "File %s does not exist.\n", fileName);
                 continue;
             }
-
-            int numBytesSent = sendto(sckt, buf, strlen(buf), 0, (struct sockaddr *)&serveraddress, serverlen);
+            
+            // First we will build the packet to send
+            int packetNum = 0;
+            buildPacket(&packetNum, strlen(buf), buf, packet);
+            int numBytesSent = sendto(sckt, packet, packetsize, 0, (struct sockaddr *)&serveraddress, serverlen);
             if(numBytesSent < 0)
             {
                 fprintf(stderr, "Message not sent.\n");
@@ -103,42 +110,36 @@ int main(int argc, char **argv)
 
             fcntl(sckt, F_SETFL, flags & ~O_NONBLOCK);
             fprintf(stdout, "Sending the file to the server\n");
-            int packetNum = 0;
-            zeroBuf(buf, bufsize);
-            ssize_t bytesReadInFile;
+
+            
             int isEOF = 0;
-            while(1)
-            {
-                bytesReadInFile = fread(buf, sizeof(char), bufsize-5, f);
-                if(bytesReadInFile <= 0)
-                {
-                    zeroBuf(buf, bufsize);
-                    strcpy(buf, EOFPACKET);
-                    numBytesReadToStringInBuf(buf, bufsize, strlen(EOFPACKET), packetNum);
-                    // numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
-                    // break;
-                    isEOF = 1;
-                }
+            while(isEOF == 0)
+            {   
+                zeroBuf(buf, bufsize);   
+                ssize_t bytesReadInFile = fread(buf, sizeof(char), bufsize, f);
+                formatBuf(buf, bytesReadInFile, &isEOF);
                 
+                // Format the packet here!
+                buildPacket(&packetNum, bufsize, buf, packet);
+
                 int numSends = 0;
                 int hasSent = 0;
                 while(numSends < NUMSENDS && hasSent == 0)
                 {
-                    numBytesReadToStringInBuf(buf, bufsize, (int)bytesReadInFile, packetNum);
-                    int numBytesSent = sendto(sckt, buf, bufsize, 0, (struct sockaddr *)&serveraddress, serverlen);
+                    int numBytesSent = sendto(sckt, buf, packetsize, 0, (struct sockaddr *)&serveraddress, serverlen);
                     fprintf(stderr, "Num bytes sent %d\n", numBytesSent);
                     (void)numBytesSent;
-                    printCharBufInInts(buf, bufsize, "buf");
-                    // zeroBuf(buf, bufsize);
+                    
 
                     fprintf(stderr, "Waiting for Acknowledgement.\n");
                     fcntl(sckt, F_SETFL, flags | O_NONBLOCK);
                     int numBytesReceived;
+                    
+
+                    char recvPacket[packetsize];
+
                     int numListens = 0;
-
-                    char ACKBuf[bufsize];
-
-                    while(numListens < 10)
+                    while(hasSent == 0  && numListens < NUMSENDS)
                     {
                         tv.tv_sec = 0;
                         tv.tv_usec = 2000;
@@ -148,27 +149,22 @@ int main(int argc, char **argv)
                         int rv = select(sckt + 1, &readfds, NULL, NULL, &tv);
                         if(rv == 1)
                         {   
-                            zeroBuf(ACKBuf, bufsize);
-                            numBytesReceived = recvfrom(sckt, ACKBuf, bufsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
+                            zeroBuf(recvPacket, packetsize);
+                            numBytesReceived = recvfrom(sckt, recvPacket, packetsize, 0, (struct sockaddr *)&serveraddress, &serverlen);
                             if(numBytesReceived < 0)
                             {
                                 continue;
                             }
-                            //fprintf(stderr, "Received buf: %s\n", buf);
-                            printCharBufInInts(ACKBuf, bufsize, "ACK");
-                            if(strncmp(ACKBuf, ACK, strlen(ACK)) == 0)
+                            
+                            int *recvPacketNum;
+                            int *recvPacketDataLength;
+                            char *recvData;
+
+                            deconstructPacket(recvPacketNum, recvPacketDataLength, recvData, recvPacket);
+
+                            if(checkIfPacketMatchesAck(recvPacketNum, recvPacketDataLength, recvData, &packetNum) == 1)
                             {
-                                // ack received
-                                fprintf(stderr, "ACK Received.\n");
-                                //hasSent = 1;
-                                fprintf(stderr, "%d\n", buf[strlen(ACK)]);
-                                fprintf(stderr, "%d\n", packetNum+1);
-                                if(ACKBuf[strlen(ACK)] == (packetNum%10)+1)
-                                {
-                                    fprintf(stderr, "ACK is for correct packet\n");
-                                    hasSent = 1;
-                                    break;
-                                }
+                                hasSent = 1;
                             }
 
                         }
@@ -182,20 +178,20 @@ int main(int argc, char **argv)
                     break;
                 }
 
-                if(numSends >= NUMSENDS)
+                if(numSends >= NUMSENDS && hasSent == 0)
                 {
                     fprintf(stderr, "Connection to server must have been lost.\n");
                     return 1;
                 }
-                
-                packetNum++;
 
             }
             
             fclose(f);
         }
         
-        
+        if(strncmp(command, "get", 3) == 0)
+        {
+        }
 
     }
     
@@ -264,4 +260,106 @@ int numBytesToReadInBuf(char *buf, int size)
 int bufPacketNum(char *buf, int size)
 {
     return buf[(size-1)-0];
+}
+
+// This function is responsible for building a packet
+// Packet number is an integer between 0 and 127
+// packetDataLength corresponds to the amount data in the payload portion of the packet
+// data is the buffer full of the data we want to send in the packet -->
+// packet is the buffer which will actually be sent in the socket. packet has length 
+void buildPacket(int *packetNum, int packetDataLength, char *data, char *packet)
+{
+
+    const int operationBase = 127;
+    const int packetDataStart = 3;
+
+    zeroBuf(packet, packetsize);
+
+    if(packetNum < 0 || *packetNum > operationBase)
+    {
+        fprintf(stderr, "Invalid range for a packet.\n");
+        return;
+    }
+
+    if(packetDataLength < 0 || packetDataLength > 1020)
+    {
+        fprintf(stderr, "Invalid range for the packet data length.\n");
+        return;
+    }
+
+    if(strlen(data) > 1020)
+    {
+        fprintf(stderr, "Data is too big to fit in packet.\n");
+    }
+
+    // First element of the packet contains the packetNum
+
+    packet[0] = *packetNum % operationBase;
+
+
+    // Next convert the base 10 integer packetDatalength into a base 127 number for more compact storage.
+    
+    packet[1] = packetDataLength / operationBase;
+    packet[2] = packetDataLength % operationBase;
+
+    // Finally, dump the data into the packet
+
+    for(int i = 0;i < strlen(data); i++)
+    {
+        packet[packetDataStart + i] = data[i];
+    }
+
+    // Now we are done. Our packet has been created.
+    // Increment packet num by 1
+    (void)*packetNum++;
+
+}
+
+// This function takes a received packet, and desconstructs it into its components.
+// Note that is assumes that the packet is formatted correctly, which is reasonable, since 
+// we expect all packets being to be packaged correctly.
+void deconstructPacket(int *packetNum, int *packetDataLength, char *data, char *packet)
+{
+    const int operationBase = 127;
+    const int packetDataStart = 3;
+
+    *packetNum = packet[0];
+
+    *packetDataLength = packet[1] * operationBase + packet[2];
+
+    for(int i = 0; i < *packetDataLength; i++)
+    {
+        data[i] = packet[i + packetDataStart];
+    }
+}
+
+// This function checks whether or not buf is empty after reading from the file
+// If Buf is empty after reading from the file, then we have reached the EOF
+// If not, then proceed normally
+void formatBuf(char *buf, ssize_t bytesReadInFile, int* eof)
+{
+    if(bytesReadInFile <= 0)
+    {
+        *eof = 1;
+        strcpy(buf, LASTPACKET);
+    }
+}
+
+// This function checks whether or not a received packet is the appropriate acknowledgement to the sent packet
+// It return 1 if the acknowledgement does match, and 0 if it does not.
+int checkIfPacketMatchesAck(int *packetNum, int *packetDataLength, char *data, int *prevPacket)
+{
+    const int operationBase = 127;
+    int truePrevPacket = *prevPacket - 1;
+    if(*prevPacket - 1 < 0)
+    {
+        truePrevPacket = operationBase;
+    }
+
+    if(*packetNum == truePrevPacket && *packetDataLength == strlen(ACK) && strncmp(data, ACK, *packetDataLength) == 0)
+    {
+        return 1;
+    }
+
+    return 0;
 }
