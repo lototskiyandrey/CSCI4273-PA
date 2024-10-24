@@ -111,6 +111,7 @@ int main (int argc, char **argv)
             printf("    Error! revents = %d.\n", fds[i].revents);
             endServer = 1;
             break;
+            
          }
 
          if(fds[i].fd == listenSocket)
