@@ -17,6 +17,10 @@ int main (int argc, char *argv[])
 
    setupConfig(&configuration, portNum);
 
+   // struct timeval timeOut;
+   // timeOut.tv_sec = 10;
+   // timeOut.tv_usec = 0;
+
    int listenSocket = socket(AF_INET, SOCK_STREAM, 0);
    if(listenSocket < 0) 
    {
@@ -28,6 +32,7 @@ int main (int argc, char *argv[])
 
    int option = 1;
    setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+   // setsockopt(listenSocket, SOL_SOCKET, SO_RCVTIMEO, &timeOut, sizeof(timeOut));
 
    struct sockaddr_in server;
    server.sin_family = AF_INET;
@@ -67,7 +72,7 @@ int main (int argc, char *argv[])
       }
       printf("Connection established.\n");
 
-      int pid;
+      pid_t pid;
       if((pid = fork()) == 0)
       {
          close(listenSocket);
@@ -81,24 +86,38 @@ int main (int argc, char *argv[])
             zeroBuf(requestVersion, bufsize);
 
             printf("Client Socket: %d.\n", clientSocket);
-            printf("Message: %s\n", receivedMessage);
+            printf("%s\n", receivedMessage);
 
             sscanf(receivedMessage, "%s %s %s", requestMethod, requestURL, requestVersion);
 
             int returnNum = responseHandler(clientSocket, 0, requestMethod, requestURL, requestVersion);
 
             if(returnNum == 0)
-            {
-               processRequest(clientSocket, requestMethod, requestURL, requestVersion, &configuration);
+            {  
+
+               // check if the received message contains a keep-alive
+
+               char *toKeepAlive = strtok(receivedMessage, "Connection: keep-alive");
+
+               int keepAlive = 1;
+
+               if(toKeepAlive == NULL) {
+                  keepAlive = 0;
+               }
+
+               processRequest(clientSocket, requestMethod, requestURL, requestVersion, &configuration, keepAlive);
             }
             else
             {
                printf("Client - %d terminated.\n", clientSocket);
                close(clientSocket);
                exit(0);
+               // break;
             }
             zeroBuf(receivedMessage, bufsize);
          }
+
+         // printf("Exited while() loop.\n");
 
          if(numBytesReceived == 0)
          {
@@ -130,12 +149,9 @@ void setupConfig(struct config *configuration, int port)
 {
 
    configuration->port = port;
-
    strcpy(configuration->root, "./www");
-
    strcpy(configuration->index, "index.html index.htm index.ws");
-
-   strcpy(configuration->contentType, ".html text/html\n.htm text/html\n.txt text/plain\n.png image/png\n.gif image/gif\n.jpg image/jpg\n.css text/css\n.js  text/javascript\n.ico image/x-icon");
+   strcpy(configuration->contentType, ".html\ttext/html\n.htm\ttext/html\n.txt\ttext/plain\n.png\timage/png\n.gif\timage/gif\n.jpg\timage/jpg\n.css\ttext/css\n.js\ttext/javascript\n.ico\timage/x-icon");
 }
 
 int getFileExtension( char *buffer, char* fileName, struct config *configuration)
@@ -155,56 +171,42 @@ int getFileExtension( char *buffer, char* fileName, struct config *configuration
    // copy configuration->contentType into temporary buffer contentType for reading.
    snprintf(contentType, bufsize, "%s", configuration->contentType);
 
-   char *token = strtok(contentType, " \n");
+   char *token = strtok(contentType, "\t\n");
 
-   printf("Token is: %s\n", token);
-
-   if(strcmp(dot, ".html") == 0)
+   while(strcmp(dot, token) != 0)
    {
-      // Now get the next token
-      token = strtok(NULL, " \n");
-      printf("Token is: %s\n", token);
+      token = strtok(NULL, "\t\n");
    }
-   else
-   {
-      // Since the default has not been found, scan the remaining tokens.
-      while(strcmp(dot, token) != 0)
-      {
-         token = strtok(NULL, " \n");
-         printf("Token is: %s\n", token);
-      }
 
-      // tokenize one more time to get the content type
-      token = strtok(NULL, " \n");
-      printf("Token is: %s\n", token);
-   }
+   token = strtok(NULL, "\t\n");
 
    snprintf(buffer, bufsize, "%s", token);
 
    return 1;
 }
 
-
-void generate501(int clientSocket, char *responseHeader, char *responseContent, char *requestMethod) 
+void generate405(int clientSocket, char *responseHeader, char *responseContent, char *requestMethod) 
 {   
+   // A method other than get was requested
    int length = 0;
-   snprintf(responseContent, bufsize, "<html><body>501 Not Implemented Request Method: %s</body></html>", requestMethod);
+   snprintf(responseContent, bufsize, "<html><body>405: A Method other than GET was requested.</body></html>");
    length += snprintf(responseHeader, bufsize, "HTTP/1.1 501 Not Implemented\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Connection: close\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
    send(clientSocket, responseHeader, strlen(responseHeader), 0);
    write(clientSocket, responseContent, strlen(responseContent));
 }
 
-
 void generate400(int clientSocket, char *responseHeader, char *responseContent, char *requestVersion)
 {
    
    int length = 0;
 
-   snprintf(responseContent, bufsize, "<html><body>400 Bad Request Reason: Invalid Version:%s</body></html>", requestVersion);
+   snprintf(responseContent, bufsize, "<html><body>400 Bad Request Reason: Malformed</body></html>");
 
    length += snprintf(responseHeader, bufsize, "HTTP/1.1 400 Bad Request\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Connection: close\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
 
@@ -217,6 +219,7 @@ void generate404(int clientSocket, char *responseHeader, char *responseContent, 
    int length = 0;
    snprintf(responseContent, bufsize, "<html><body>404 Not Found: Reason URL does not exist: %s</body></html>", requestURL);
    length += snprintf(responseHeader, bufsize, "HTTP/1.1 404 Not Found\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Connection: close\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
    send(clientSocket, responseHeader, strlen(responseHeader), 0);
@@ -228,8 +231,37 @@ void generate500(int clientSocket, char *responseHeader, char *responseContent)
    snprintf(responseContent, bufsize, "<html><body>500 Internal Server Error: Cannot allocate memory</body></html>");
    int length = 0;
    length += snprintf(responseHeader, bufsize, "HTTP/1.1 500 Internal Server Error\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Connection: close\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
    length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
+   send(clientSocket, responseHeader, strlen(responseHeader), 0);
+   write(clientSocket, responseContent, strlen(responseContent));
+}
+
+void generate403(int clientSocket, char *responseHeader, char *responseContent, char *requestURL)
+{
+   int length = 0;
+   snprintf(responseContent, bufsize, "<html><body>403 Not Allowed: Reason Inadequate Permission: %s</body></html>", requestURL);
+   length += snprintf(responseHeader, bufsize, "HTTP/1.1 404 Not Found\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Connection: close\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
+   send(clientSocket, responseHeader, strlen(responseHeader), 0);
+   write(clientSocket, responseContent, strlen(responseContent));
+}
+
+void generate505(int clientSocket, char *responseHeader, char *responseContent, char *requestVersion)
+{
+   
+   int length = 0;
+
+   snprintf(responseContent, bufsize, "<html><body>505 Bad Request Reason: HTTP version not supported</body></html>");
+
+   length += snprintf(responseHeader, bufsize, "HTTP/1.1 505 Bad Request\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Connection: close\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
+
    send(clientSocket, responseHeader, strlen(responseHeader), 0);
    write(clientSocket, responseContent, strlen(responseContent));
 }
@@ -240,31 +272,30 @@ int responseHandler(int clientSocket, int statusCode, char* requestMethod, char*
    char responseHeader[bufsize];
    char responseContent[bufsize];
    
-
    //Clear the buffers before use
    zeroBuf(responseHeader, bufsize);
    zeroBuf(responseContent, bufsize);
-
-   //we don't have a specific error to print
-   if(statusCode == 0)
-   {
-      //501 Error: The request methods don't exist.
-      if( !(strcmp(requestMethod, "GET") == 0) )
-      {
-         generate501(clientSocket, responseHeader, responseContent, requestMethod);
-         return -1;
-      }
-      // 400 Error: The request version is wrong.
-      if (strcmp(requestVersion, "HTTP/1.1") != 0 && strcmp(requestVersion, "HTTP/1.0") != 0)
-      {
-         generate400(clientSocket, responseHeader, responseContent, requestVersion);
-         return -1;
-      }
-   }
-   
-   //For specific errors
+ 
    switch(statusCode)
    {
+      // Case 0 means that we do not have a specific error we want to print
+      case 0:
+         if(strcmp(requestMethod, "GET") != 0)
+         {
+            // This is a 405 error
+            generate405(clientSocket, responseHeader, responseContent, requestMethod);
+            return -1;
+         }
+         if(strcmp(requestVersion, "HTTP/1.1") != 0 && strcmp(requestVersion, "HTTP/1.0") != 0)
+         {
+            // 505 Error
+            generate505(clientSocket, responseHeader, responseContent, requestVersion);
+            return -1;
+         }
+
+         // Otherwise, no error
+         break;
+      
       //404 Error: File not found.
       case 404:
          generate404(clientSocket, responseHeader, responseContent, requestURL);
@@ -275,19 +306,22 @@ int responseHandler(int clientSocket, int statusCode, char* requestMethod, char*
          generate500(clientSocket, responseHeader, responseContent);
          return -1;
          break;
-      // 501 Error: The request Methods dont exist.
-      case 501:
-         generate501(clientSocket, responseHeader, responseContent, requestMethod);
+      // 501 Error: The requested method doesn't exist.
+      case 405:
+         generate405(clientSocket, responseHeader, responseContent, requestMethod);
+         return -1;
+         break;
+      case 403:
+         generate403(clientSocket, responseHeader, responseContent, requestURL);
          return -1;
          break;
    }
    
-
    return 0;
 }
 
 //Handles client requests
-void processRequest(int clientSocket, char* requestMethod, char* requestURL, char* requestVersion, struct config *configuration)
+void processRequest(int clientSocket, char* requestMethod, char* requestURL, char* requestVersion, struct config *configuration, int keepAlive)
 {
    FILE *f;
 
@@ -322,10 +356,8 @@ void processRequest(int clientSocket, char* requestMethod, char* requestURL, cha
    char fileExtension[bufsize];
    zeroBuf(fileExtension, bufsize);
    int returnedFileExtension = 1;
-   printf("Getting file extension.\n");
-   returnedFileExtension = getFileExtension(fileExtension, requestURL, configuration);
 
-   printf("File Extension is: %s\n", fileExtension);
+   returnedFileExtension = getFileExtension(fileExtension, requestURL, configuration);
 
    if(returnedFileExtension == 0)
    {
@@ -340,13 +372,15 @@ void processRequest(int clientSocket, char* requestMethod, char* requestURL, cha
 
    char contentHeader[bufsize];
 
-   generateHTTPHeader(contentHeader, fileExtension, fileSize);
+   // int httpVersion = 1;
+
+   generateHTTPHeader(contentHeader, fileExtension, fileSize, requestVersion, keepAlive);
 
    send(clientSocket, contentHeader, strlen(contentHeader), 0);
 
    char fileBuffer[bufsize];
    size_t bytesRead = fread(fileBuffer, sizeof(char), bufsize, f);
-   while(bytesRead > 0 || !feof(f))
+   while(bytesRead > 0)
    {
       write(clientSocket, fileBuffer, (int)bytesRead);
       zeroBuf(fileBuffer, bufsize);
@@ -355,11 +389,24 @@ void processRequest(int clientSocket, char* requestMethod, char* requestURL, cha
    return;
 }
 
-void generateHTTPHeader(char *contentHeader, char *fileExtension, int fileSize)
+void generateHTTPHeader(char *contentHeader, char *fileExtension, int fileSize, char *requestVersion, int keepAlive)
 {  
    int contentLength = 0;
-   contentLength = snprintf(contentHeader, bufsize, "HTTP/1.1 200 OK\r\n");
+
+   char *OK = " 200 OK\r\n";
+
+   strcat(requestVersion, OK);
+
+   contentLength = snprintf(contentHeader, bufsize, requestVersion);
+   if(keepAlive == 1)
+   {
+      contentLength += snprintf(contentHeader + contentLength, bufsize - contentLength, "Connection: keep-alive\r\n");
+   }
+   else 
+   {
+      contentLength += snprintf(contentHeader + contentLength, bufsize - contentLength, "Connection: Closed\r\n");
+   }
    contentLength += snprintf(contentHeader + contentLength, bufsize - contentLength, "Content-Type: %s\r\n", fileExtension);
-   contentLength += snprintf(contentHeader + contentLength, bufsize - contentLength, "Content-Length: %d\r\n", fileSize);
-   contentLength += snprintf(contentHeader + contentLength, bufsize - contentLength, "Connection: Keep-Alive\r\n\r\n");
+   contentLength += snprintf(contentHeader + contentLength, bufsize - contentLength, "Content-Length: %d\r\n\r\n", fileSize);
+   
 }

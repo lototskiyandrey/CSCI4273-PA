@@ -27,6 +27,6 @@ struct config
 void zeroBuf(char *buf, int size);
 void setupConfig(struct config *configuration, int port);
 int responseHandler(int client_sock, int statusCode, char* requestMethod, char* requestURI, char* requestVersion);
-void processRequest(int clientSocket, char* requestMethod, char* requestURL, char* requestVersion, struct config *configuration);
-void generateHTTPHeader(char *contentHeader, char *fileExtension, int fileSize);
-int getFileExtension( char *buffer, char* fileName, struct config *confData);
+void processRequest(int clientSocket, char* requestMethod, char* requestURL, char* requestVersion, struct config *configuration, int keepAlive);
+void generateHTTPHeader(char *contentHeader, char *fileExtension, int fileSize, char *requestVersion, int keepAlive);
+int getFileExtension( char *buffer, char* fileName, struct config *configuration);
