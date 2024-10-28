@@ -185,105 +185,105 @@ int getFileExtension( char *buffer, char* fileName, struct config *configuration
 }
 
 
+void generate501(int clientSocket, char *responseHeader, char *responseContent, char *requestMethod) 
+{   
+   int length = 0;
+   snprintf(responseContent, bufsize, "<html><body>501 Not Implemented Request Method: %s</body></html>", requestMethod);
+   length += snprintf(responseHeader, bufsize, "HTTP/1.1 501 Not Implemented\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
+   send(clientSocket, responseHeader, strlen(responseHeader), 0);
+   write(clientSocket, responseContent, strlen(responseContent));
+}
+
+
+void generate400(int clientSocket, char *responseHeader, char *responseContent, char *requestVersion)
+{
+   
+   int length = 0;
+
+   snprintf(responseContent, bufsize, "<html><body>400 Bad Request Reason: Invalid Version:%s</body></html>", requestVersion);
+
+   length += snprintf(responseHeader, bufsize, "HTTP/1.1 400 Bad Request\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
+
+   send(clientSocket, responseHeader, strlen(responseHeader), 0);
+   write(clientSocket, responseContent, strlen(responseContent));
+}
+
+void generate404(int clientSocket, char *responseHeader, char *responseContent, char *requestURL)
+{
+   int length = 0;
+   snprintf(responseContent, bufsize, "<html><body>404 Not Found: Reason URL does not exist: %s</body></html>", requestURL);
+   length += snprintf(responseHeader, bufsize, "HTTP/1.1 404 Not Found\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
+   send(clientSocket, responseHeader, strlen(responseHeader), 0);
+   write(clientSocket, responseContent, strlen(responseContent));
+}
+
+void generate500(int clientSocket, char *responseHeader, char *responseContent)
+{
+   snprintf(responseContent, bufsize, "<html><body>500 Internal Server Error: Cannot allocate memory</body></html>");
+   int length = 0;
+   length += snprintf(responseHeader, bufsize, "HTTP/1.1 500 Internal Server Error\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Type: text/html\r\n");
+   length += snprintf(responseHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(responseContent));
+   send(clientSocket, responseHeader, strlen(responseHeader), 0);
+   write(clientSocket, responseContent, strlen(responseContent));
+}
 
 //Check for valid requests and output errors
-int responseHandler(int client_sock, int statusCode, char* requestMethod, char* requestURI, char* requestVersion)
+int responseHandler(int clientSocket, int statusCode, char* requestMethod, char* requestURL, char* requestVersion)
 {
-    char errorHeader[bufsize];
-    char errorContent[bufsize];
-    int length = 0;
+   char responseHeader[bufsize];
+   char responseContent[bufsize];
+   
 
-    //Clear the buffers before use
-    memset(&errorHeader, 0, bufsize);
-    memset(&errorContent, 0, bufsize);
+   //Clear the buffers before use
+   zeroBuf(responseHeader, bufsize);
+   zeroBuf(responseContent, bufsize);
 
-    //If we don't have a specific error to print (i.e. validation)
-    if(statusCode == 0)
-    {
-        //501 Error: request methods that have not been implemented
-        if( !(strcmp(requestMethod, "GET") == 0) )
-        {
-            //Print the string to errorContent
-            snprintf(errorContent, bufsize, "<html><body>501 Not Implemented "
-                "Request Method: %s</body></html>", requestMethod);
+   //we don't have a specific error to print
+   if(statusCode == 0)
+   {
+      //501 Error: The request methods don't exist.
+      if( !(strcmp(requestMethod, "GET") == 0) )
+      {
+         generate501(clientSocket, responseHeader, responseContent, requestMethod);
+         return -1;
+      }
+      // 400 Error: The request version is wrong.
+      if (strcmp(requestVersion, "HTTP/1.1") != 0 && strcmp(requestVersion, "HTTP/1.0") != 0)
+      {
+         generate400(clientSocket, responseHeader, responseContent, requestVersion);
+         return -1;
+      }
+   }
+   
+   //For specific errors
+   switch(statusCode)
+   {
+      //404 Error: File not found.
+      case 404:
+         generate404(clientSocket, responseHeader, responseContent, requestURL);
+         return -1;
+         break;
+      //500 Error: Internal Server Error.
+      case 500:
+         generate500(clientSocket, responseHeader, responseContent);
+         return -1;
+         break;
+      // 501 Error: The request Methods dont exist.
+      case 501:
+         generate501(clientSocket, responseHeader, responseContent, requestMethod);
+         return -1;
+         break;
+   }
+   
 
-            //Length keeps track of position in string.
-            //Create the header structure
-            length += snprintf(errorHeader, bufsize, "HTTP/1.1 501 Not Implemented\r\n");
-            length += snprintf(errorHeader+length, bufsize-length, "Content-Type: text/html\r\n");
-            length += snprintf(errorHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(errorContent));
-            //Send the header to the client
-            send(client_sock, errorHeader, strlen(errorHeader), 0);
-            //Write data to the client
-            write(client_sock, errorContent, strlen(errorContent));
-
-            return -1;
-        }
-        if ( !( (strcmp(requestVersion, "HTTP/1.1") == 0) || (strcmp(requestVersion, "HTTP/1.0") == 0) ) )
-        {
-            snprintf(errorContent, bufsize, "<html><body>400 Bad Request Reason: "
-                "Invalid Version:%s</body></html>", requestVersion);
-
-            //Create the header structure
-            length += snprintf(errorHeader, bufsize, "HTTP/1.1 400 Bad Request\r\n");
-            length += snprintf(errorHeader+length, bufsize-length, "Content-Type: text/html\r\n");
-            length += snprintf(errorHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(errorContent));
-
-            //Send header to client
-            send(client_sock, errorHeader, strlen(errorHeader), 0);
-            //Write data to the client
-            write(client_sock, errorContent, strlen(errorContent));
-
-            return -1;
-        }
-    }
-    else
-    {
-        //If we want to output a specific status code
-        switch(statusCode)
-        {
-            //File not found
-            case 404:
-                snprintf(errorContent, bufsize, "<html><body>404 Not Found "
-                "Reason URL does not exist: %s</body></html>", requestURI);
-
-                length += snprintf(errorHeader, bufsize, "HTTP/1.1 404 Not Found\r\n");
-                length += snprintf(errorHeader+length, bufsize-length, "Content-Type: text/html\r\n");
-                length += snprintf(errorHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(errorContent));
-                send(client_sock, errorHeader, strlen(errorHeader), 0);
-                
-                write(client_sock, errorContent, strlen(errorContent));
-                return -1;
-                break;
-            //Catch-all for other errors
-            case 500:
-                length += snprintf(errorHeader, bufsize, "HTTP/1.1 500 Internal Server Error\r\n");
-                length += snprintf(errorHeader+length, bufsize-length, "Content-Type: text/html\r\n");
-                length += snprintf(errorHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(errorContent));
-                snprintf(errorContent, bufsize, "<html><body>500 Internal Server Error: "
-                    "Cannot allocate memory</body></html>");
-                send(client_sock, errorHeader, strlen(errorHeader), 0);
-                
-                write(client_sock, errorContent, strlen(errorContent));
-                return -1;
-                break;
-            //Duplicate, but in case we want to call it specifically
-            case 501:
-                snprintf(errorContent, bufsize, "<html><body>501 Not Implemented "
-                "Method: %s</body></html>", requestMethod);
-
-                length += snprintf(errorHeader, bufsize, "HTTP/1.1 501 Not Implemented\r\n");
-                length += snprintf(errorHeader+length, bufsize-length, "Content-Type: text/html\r\n");
-                length += snprintf(errorHeader+length, bufsize-length, "Content-Length: %lu\r\n\r\n", strlen(errorContent));
-                send(client_sock, errorHeader, strlen(errorHeader), 0);
-                
-                write(client_sock, errorContent, strlen(errorContent));
-                return -1;
-                break;
-        }
-    }
-
-    return 0;
+   return 0;
 }
 
 //Handles client requests
