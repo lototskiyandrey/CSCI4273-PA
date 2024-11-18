@@ -1,11 +1,10 @@
-
 #include "proxy.h"
 
 
 pthread_mutex_t dns_lock;
 pthread_mutex_t cache_lock;
 
-int timeout = 0;
+int timeout;
 char dnsCache[maxdnslength];
 
 
@@ -14,8 +13,7 @@ int main(int argc, char **argv)
     
     if(argc != 2 && argc != 3)
     {
-        fprintf(stderr, "Wrong number of inputs.\n");
-        exit(0);
+        
     }
 
     int portNum;
@@ -23,12 +21,20 @@ int main(int argc, char **argv)
     if(argc == 2)
     {
         portNum = atoi(argv[1]);
+        timeout = 0;
     }
 
     // timeout specified
-    if(argc == 3)
+    else if(argc == 3)
     {
         timeout = atoi(argv[2]);
+        portNum = atoi(argv[1]);
+        printf("timeout set to %d seconds\n", timeout);
+    }
+    else 
+    {
+        fprintf(stderr, "Wrong number of inputs.\n");
+        exit(0);
     }
 
 
@@ -42,6 +48,8 @@ int main(int argc, char **argv)
     
     int listenSocket = open_listenSocket(portNum);
 
+    printf("listenSocket is: %d\n", listenSocket);
+
     if(pthread_mutex_init(&dns_lock, NULL) != 0)
     {
         fprintf(stderr, "Cannot initialize mutex dns_lock.\n");
@@ -53,12 +61,16 @@ int main(int argc, char **argv)
         fprintf(stderr, "Cannot initialize mutex cache_lock.\n");
         return -1;
     }
-
+    // printf("Entering while loop\n");
     while(1)
-    {
+    {   
+        // printf("mallocing\n");
         connfdp = malloc(sizeof(int));
+        // printf("accepting\n");
         *connfdp = accept(listenSocket, (struct sockaddr *)&clientAddr, &clientLen);
+        // printf("new thread\n");
         pthread_create(&threadId, NULL, thread, connfdp);
+        // printf("created thread\n");
     }
 
     return 0;
@@ -158,6 +170,8 @@ int open_listenSocket(int portNum)
         return -1;
     }
 
+    // printf("returning listenSocket: %d\n", listenSocket);
+
     return listenSocket;
 
 }
@@ -171,6 +185,7 @@ void echo(int connFd)
 
     char receivedBuf[maxdnslength];
     char fileName[maxbuflength];
+    // printf("proxy waiting for request.\n");
     size_t n = read(connFd, receivedBuf, maxdnslength);
     printf("Proxy received a request.\n");
 
@@ -234,7 +249,8 @@ void echo(int connFd)
     strcpy(cachedBuf, "cache/");
     strcat(cachedBuf, md5Output);
 
-    if(checkCacheMD5(md5Output)) 
+    // printf("Check cache result: %d\n", checkCacheMD5(md5Output));
+    if(checkCacheMD5(md5Output) == 1) 
     {
         printf("Cache matches, sending file: %s\n", cachedBuf);
         sendFileFromCache(connFd, cachedBuf);
@@ -259,7 +275,7 @@ void echo(int connFd)
     struct hostent *server;
     if(serverAddrCache == -1)
     {
-        printf("Host %s is ont in the cache\n", hostName);
+        printf("Host %s is not in the cache\n", hostName);
         server = gethostbyname(hostName);
         if(server == NULL)
         {
@@ -294,8 +310,9 @@ void echo(int connFd)
     }
 
     printf("Checking blacklist for %s:%s\n", hostName, ipBuf);
-    if(isBlackListed(hostName, ipBuf) == 1)
+    if(isBlackListed(hostName, ipBuf) != 0)
     {
+        printf("Sending a message that the connection isn't allowed\n");
         send_error(connFd, "403 Forbidden");
         return;
     }
@@ -410,6 +427,7 @@ int checkCacheMD5(char *str)
         time_t fileModify = fileStat.st_mtime;
         time_t currentTime = time(NULL);
         double diffTime = difftime(currentTime, fileModify);
+        printf("Checking for appropriate timeout\n");
         if(diffTime > timeout)
         {
             printf("Timeout occurred. File was modified %.2f seconds ago, and timeout is %d\n", diffTime, timeout);
@@ -418,7 +436,7 @@ int checkCacheMD5(char *str)
         printf("File is valid for %d seconds\n", timeout - (int)diffTime);
         return 1;
     }
-    else if(errno = ENONET)
+    else if(errno == ENONET)
     {
         printf("Cache folder doesn't exit.\n");
         mkdir("cache", 0777);

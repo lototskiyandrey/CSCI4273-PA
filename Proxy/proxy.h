@@ -12,6 +12,8 @@
 #include <strings.h>
 #include <openssl/md5.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/time.h>
 
 #define maxdnslength 8192
 #define maxbuflength 8192
