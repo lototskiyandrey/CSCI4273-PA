@@ -16,3 +16,8 @@ f22.jpg
 ws.conf
 copyOfServer.c
 a.out
+cache/*
+cache
+webproxy
+proxy
+proxyCopy.c

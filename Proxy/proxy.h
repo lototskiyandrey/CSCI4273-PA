@@ -17,11 +17,6 @@
 #define maxbuflength 8192
 
 
-pthread_mutex_t dns_lock;
-pthread_mutex_t cache_lock;
-int timeout = 0;
-char dnsCache[maxdnslength];
-
 int open_listenSocket(int portNum);
 void* thread(void* vargp);
 void echo(int connFd);
