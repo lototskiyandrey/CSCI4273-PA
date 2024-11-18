@@ -4,24 +4,18 @@
 pthread_mutex_t dns_lock;
 pthread_mutex_t cache_lock;
 
-int timeout;
+int timeout = 0;
 char dnsCache[maxdnslength];
 
 
 int main(int argc, char **argv)
 {   
-    
-    if(argc != 2 && argc != 3)
-    {
-        
-    }
 
     int portNum;
     // no specified timeout
     if(argc == 2)
     {
         portNum = atoi(argv[1]);
-        timeout = 0;
     }
 
     // timeout specified
