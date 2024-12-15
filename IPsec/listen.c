@@ -91,31 +91,29 @@ int main(int argc, char **argv) {
      * recvfrom: receive a UDP datagram from a client
      */
     bzero(buf, BUFSIZE);
-    n = recvfrom(sockfd, buf, BUFSIZE, 0,
-		 (struct sockaddr *) &clientaddr, &clientlen);
+    n = recvfrom(sockfd, buf, BUFSIZE, 0,(struct sockaddr *) &clientaddr, (socklen_t *)&clientlen);
     if (n < 0)
       error("ERROR in recvfrom");
 
     /* 
      * gethostbyaddr: determine who sent the datagram
      */
-    hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, 
-			  sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+    hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
     if (hostp == NULL)
-      error("ERROR on gethostbyaddr");
+    {
+        error("ERROR on gethostbyaddr");
+    }
+      
     hostaddrp = inet_ntoa(clientaddr.sin_addr);
+
+
     if (hostaddrp == NULL)
-      error("ERROR on inet_ntoa\n");
-    printf("server received datagram from %s (%s)\n", 
-	   hostp->h_name, hostaddrp);
-    printf("server received %d/%d bytes: %s\n", strlen(buf), n, buf);
+    {
+        error("ERROR on inet_ntoa\n");
+    }
+
+    printf("server received message from %s (%s)\n", hostp->h_name, hostaddrp);
+    printf("server received %d/%d bytes: %s\n", (int)strlen(buf), n, buf);
     
-    /* 
-     * sendto: echo the input back to the client 
-     */
-    n = sendto(sockfd, buf, strlen(buf), 0, 
-	       (struct sockaddr *) &clientaddr, clientlen);
-    if (n < 0) 
-      error("ERROR in sendto");
   }
 }
