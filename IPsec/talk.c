@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
 
 void bitWiseXOR(char *buf, unsigned char shared_key)
 {
-    for(int i = 0; i < BUFSIZE; i++)
+    for(int i = 0; i < BUFSIZE-1; i++)
     {
         buf[i] = buf[i] ^ shared_key;
     }
